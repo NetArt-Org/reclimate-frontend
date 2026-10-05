@@ -1,0 +1,4 @@
+# Netlify: serve the backend's API under this site's own address, so the
+# browser treats the login cookie as first-party (works in Safari too).
+# Used when NEXT_PUBLIC_API_URL is set to "/" on the Netlify frontend site.
+/api/*  https://reclimate-backend.netlify.app/api/:splat  200
