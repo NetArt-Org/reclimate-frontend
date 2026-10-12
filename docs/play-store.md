@@ -5,7 +5,8 @@ A checklist for the first release, and the answers the Play Console asks for. Ke
 ## 1. Build
 
 ```bash
-# .env.local: NEXT_PUBLIC_API_URL = the backend on Firebase App Hosting (https://…), plus NEXT_PUBLIC_FIREBASE_*
+# .env.production: NEXT_PUBLIC_API_URL = the backend on Firebase App Hosting (the build refuses localhost);
+# .env.local: NEXT_PUBLIC_FIREBASE_* only (never the API URL — it would override .env.production)
 npm version patch            # or minor: package.json's version is the store version (versionCode 2.7.0 → 20700)
 npm run build && npx cap sync android
 ```
