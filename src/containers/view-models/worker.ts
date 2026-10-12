@@ -1,4 +1,5 @@
-import { CREDIT_GOAL, CREDIT_PRICE, DAYS, TREND } from "@/data/constants"
+import type { IconName } from "@/components/common"
+import { DAYS } from "@/data/constants"
 import type { BatchDayCard, BatchDetailScreenProps } from "@/features/batches/BatchDetailScreen"
 import type { BatchListItem, DaySegment } from "@/features/batches/ProcessScreen"
 import type { CreditsScreenProps } from "@/features/credits/CreditsScreen"
@@ -6,25 +7,34 @@ import type { SellSheetProps } from "@/features/credits/SellSheet"
 import type { HomeScreenProps } from "@/features/home/HomeScreen"
 import type { CreditsSummary } from "@/features/home/types"
 import { isWet, moistureOf } from "@/lib/batch"
-import { L, fill, formatElapsed, formatRupiahMillions } from "@/lib/format"
+import { L, fill, formatDay, formatElapsed, formatMoney } from "@/lib/format"
 import type { Batch } from "@/types"
 import {
   activeBatch, batchTitle, batchYieldTitle, bioName, buildHeader, chipFor, credit, dayDef, statusView, type VMContext,
 } from "./context"
 
+/** "Load more" for a paged list, or nothing when the server has no more. */
+export const more = (ctx: VMContext, list: Parameters<VMContext["a"]["loadMore"]>[0], hasMore: boolean) =>
+  hasMore && ctx.s.online
+    ? { label: ctx.s.loadingMore[list] ? ctx.t.loadingMore : ctx.t.loadMore, loading: !!ctx.s.loadingMore[list], onPress: () => void ctx.a.loadMore(list) }
+    : null
+
+/** Credits as the hero card and the credits screen show them: balance, price and payout goal from the backend. */
 export const creditsSummary = (ctx: VMContext): CreditsSummary => {
   const { s, t, nf, lg } = ctx
-  const unused = s.credits.earned - s.credits.sold
-  const pend = s.batches.filter((b) => b.status === "waiting").reduce((acc, b) => acc + credit(b.litres), 0)
-  const pct = Math.min(100, (unused / CREDIT_GOAL) * 100)
+  const goal = s.rules?.credits.payoutGoal ?? 0
+  // Credits already asked to sell are no longer unused.
+  const unused = Math.max(0, s.credits.earned - s.credits.sold - s.credits.pending)
+  const pend = s.batches.filter((b) => b.status === "waiting" || (b.status === "approved" && !b.adminDecision)).reduce((acc, b) => acc + credit(b, ctx), 0)
+  const pct = goal ? Math.min(100, (unused / goal) * 100) : 0
   return {
-    unused: nf(unused),
-    value: formatRupiahMillions(unused * CREDIT_PRICE, lg),
+    unused: nf(unused, 2),
+    value: formatMoney(unused * (s.rules?.credits.price ?? 0), s.rules?.credits.currency ?? "", lg),
     pct,
-    pendPct: Math.min(100 - pct, (pend / CREDIT_GOAL) * 100),
-    progress: `${nf(unused)} / ${nf(CREDIT_GOAL)}`,
-    toGo: unused >= CREDIT_GOAL ? t.readyToSell : `${nf(CREDIT_GOAL - unused)} ${t.toGo}`,
-    pendText: `+${nf(pend)} ${t.pendCr}`,
+    pendPct: goal ? Math.min(100 - pct, (pend / goal) * 100) : 0,
+    progress: `${nf(unused, 2)} / ${nf(goal)}`,
+    toGo: unused >= goal ? t.readyToSell : `${nf(goal - unused, 2)} ${t.toGo}`,
+    pendText: `+${nf(pend, 2)} ${t.pendCr}`,
     flash: s.heroFlash,
   }
 }
@@ -37,7 +47,7 @@ export const mixReadyList = (ctx: VMContext) => {
     .map((b) => ({
       id: b.id,
       title: `${bioName(b, ctx)} · ${nf(b.litres)} L`,
-      sub: `${t.day} ${b.day} · ${L(DAYS[b.day - 1].name, lg)} · ${b.kiln}`,
+      sub: `${t.day} ${b.day} · ${L(DAYS[Math.min(b.day, DAYS.length) - 1]?.name, lg)} · ${b.kiln}`,
       onOpen: () => a.openWizard(b.id),
     }))
 }
@@ -45,13 +55,29 @@ export const mixReadyList = (ctx: VMContext) => {
 const taskSub = (b: Batch, ctx: VMContext) =>
   [b.kg ? `${bioName(b, ctx)} · ${ctx.nf(b.kg)} kg` : ctx.t.newBatchT, b.kiln].filter(Boolean).join(" · ")
 
+/** The latest things that happened at the site, from the backend's records. */
+function recentActivity(ctx: VMContext) {
+  const { s, nf, t } = ctx
+  const items: { icon: IconName; title: string; at: string }[] = [
+    ...s.records.collections.slice(0, 5).map((c) => ({ icon: "wheat" as const, title: `${nf(c.kg)} kg ${c.feedstock.toLowerCase()} · ${c.source}`, at: c.date })),
+    ...s.records.packagings.slice(0, 3).map((p) => ({ icon: "shopping-bag" as const, title: `${nf(p.bags)} ${t.bagsL.toLowerCase()} · ${p.packagingType}`, at: p.date })),
+    ...s.records.applications.slice(0, 3).map((a) => ({ icon: "sprout" as const, title: `${a.mixType} → ${a.recipient}`, at: a.date })),
+    ...s.batches.filter((b) => b.v.burn).slice(0, 5).map((b) => ({ icon: "flame" as const, title: `${t.burnStartedAct} · ${b.kiln || bioName(b, ctx)}`, at: new Date(Number(b.v.burn)).toISOString() })),
+  ]
+  const today = formatDay(new Date().toISOString())
+  return items
+    .sort((x, y) => y.at.localeCompare(x.at))
+    .slice(0, 5)
+    .map((x) => ({ icon: x.icon, title: x.title, time: formatDay(x.at) === today ? t.todayW : formatDay(x.at).slice(0, 5) }))
+}
+
 export function buildHome(ctx: VMContext): HomeScreenProps {
   const { s, a, t, lg, nf } = ctx
   const tb = activeBatch(s)
   let task: HomeScreenProps["task"] = null
   if (tb) {
     const d = dayDef(tb)
-    const st = d.steps[tb.step]
+    const st = d.steps[Math.min(tb.step, d.steps.length - 1)]
     task = {
       day: `${t.day} ${d.n} · ${L(d.name, lg)}`,
       title: L(st.title, lg),
@@ -65,57 +91,56 @@ export function buildHome(ctx: VMContext): HomeScreenProps {
     }
   }
 
-  const max = Math.max(...TREND)
+  const st = s.stats
+  const b = st?.biochar
+  const total = b ? b.approvedL + b.pendingL + b.rejectedL : 0
+  const pct = (x: number) => (total ? (x / total) * 100 : 0)
+  const trend = st?.trend ?? []
+  const max = Math.max(1, ...trend.map((x) => x.litres))
   const co2 = s.credits.earned
-  const activity = [
-    { icon: "flame" as const, title: { en: "Burn started · Masri Malay 5", id: "Pembakaran dimulai · Masri Malay 5" }, time: t.todayW },
-    { icon: "wheat" as const, title: { en: "898 kg corn cob from Pak Masri Malay", id: "898 kg tongkol jagung dari Pak Masri Malay" }, time: t.todayW },
-    { icon: "wheat" as const, title: { en: "4,488 kg corn cob from Pak Masri Malay", id: "4.488 kg tongkol jagung dari Pak Masri Malay" }, time: "18/09" },
-    { icon: "shopping-bag" as const, title: { en: "1 sack packed · Biochar-Compost 1:1", id: "1 karung dikemas · Biochar-Kompos 1:1" }, time: "30/06" },
-  ]
 
   return {
     t,
     header: buildHeader(ctx),
-    loading: s.loading,
+    loading: s.loading && !st,
     credits: creditsSummary(ctx),
     onOpenCredits: () => a.setTab("credits"),
     task,
     onNewBatch: a.newBatch,
     mixReady: mixReadyList(ctx),
-    impact: fill(t.impact, { co2: nf(co2), trees: nf(Math.round(co2 / 0.022 / 100) * 100) }),
-    // Site-level totals — static in the prototype, from the dMRV API in production.
+    // A mature tree takes up about 22 kg of CO₂ a year.
+    impact: fill(t.impact, { co2: nf(co2, 2), trees: nf(Math.round((co2 * 1000) / 22)) }),
     numbers: {
-      biomass: "410.36",
-      biochar: "398.29",
+      biomass: nf((st?.biomass.totalKg ?? 0) / 1000, 2),
+      biochar: nf(total / 1000, 2),
       split: [
-        { tone: "approved", pct: 61.6, label: t.approved, value: "245.2" },
-        { tone: "waiting", pct: 36.6, label: t.waiting, value: "146.0" },
-        { tone: "rejected", pct: 1.8, label: t.rejected, value: "7.1" },
+        { tone: "approved", pct: pct(b?.approvedL ?? 0), label: t.approved, value: nf((b?.approvedL ?? 0) / 1000, 1) },
+        { tone: "waiting", pct: pct(b?.pendingL ?? 0), label: t.waiting, value: nf((b?.pendingL ?? 0) / 1000, 1) },
+        { tone: "rejected", pct: pct(b?.rejectedL ?? 0), label: t.rejected, value: nf((b?.rejectedL ?? 0) / 1000, 1) },
       ],
       flow: [
-        { icon: "cooking-pot", value: "0.04 m³", label: t.mixed },
-        { icon: "truck", value: "0.00 m³", label: t.shipped },
-        { icon: "sprout", value: "0.00 m³", label: t.applied },
+        { icon: "cooking-pot", value: `${nf((b?.mixedL ?? 0) / 1000, 2)} m³`, label: t.mixed },
+        { icon: "truck", value: `${nf(b?.shipped.bags ?? 0)} ${t.bagsL.toLowerCase()}`, label: t.shipped },
+        { icon: "sprout", value: `${nf(b?.applied.bags ?? 0)} ${t.bagsL.toLowerCase()}`, label: t.applied },
       ],
     },
-    trend: TREND.map((v, i) => ({ h: (v / max) * 100, today: i === TREND.length - 1 })),
-    trendStart: "24/08",
+    trend: trend.map((x, i) => ({ h: (x.litres / max) * 100, today: i === trend.length - 1 })),
+    trendStart: trend[0] ? formatDay(trend[0].day).slice(0, 5) : "",
     feedback: s.batches
-      .filter((b) => ["rejected", "approved", "waiting"].includes(b.status))
+      .filter((x) => ["rejected", "approved", "waiting"].includes(x.status))
       .slice(0, 3)
-      .map((b) => ({
-        title: batchYieldTitle(b, ctx),
+      .map((x) => ({
+        title: batchYieldTitle(x, ctx),
         sub:
-          b.status === "rejected"
-            ? [b.by, L(b.reason, lg)].filter(Boolean).join(": ")
-            : b.status === "approved"
-              ? [b.by, b.date].filter(Boolean).join(" · ")
-              : `${b.kiln} · ${b.date}`,
-        status: statusView(b, ctx),
-        onOpen: () => a.openBatch(b.id),
+          x.status === "rejected"
+            ? [x.by, L(x.reason, lg)].filter(Boolean).join(": ")
+            : x.status === "approved"
+              ? [x.adminDecision ? t.finalApproved : t.networkApproved, x.by, x.date].filter(Boolean).join(" · ")
+              : `${x.kiln} · ${x.date}`,
+        status: statusView(x, ctx),
+        onOpen: () => a.openBatch(x.id),
       })),
-    activity: activity.map((x) => ({ icon: x.icon, title: L(x.title, lg), time: x.time })),
+    activity: recentActivity(ctx),
   }
 }
 
@@ -128,7 +153,7 @@ export function buildProcess(ctx: VMContext): BatchListItem[] {
         ? `${t.day} 2 ${t.doneLbl.toLowerCase()} · ${t.waitSup}`
         : b.status === "rejected"
           ? `${t.day} 2 · ${t.fixNeeded}`
-          : `${t.day} ${b.day} ${t.of} 4 · ${L(DAYS[b.day - 1].name, lg)}`
+          : `${t.day} ${b.day} ${t.of} 4 · ${L(DAYS[b.day - 1]?.name, lg)}`
   const seg = (b: Batch, d: number): DaySegment =>
     d < b.day
       ? b.status === "rejected" && d === 2
@@ -175,6 +200,8 @@ export function buildBatchDetail(ctx: VMContext): BatchDetailScreenProps | null 
     return { ...base, icon: "lock", state: "locked", stateText: fill(t.unlocksAfter, { n: d.n - 1 }) }
   })
   const moist = moistureOf(b)
+  const readings = s.rules?.moisture.readings ?? moist.length
+  const c = credit(b, ctx)
   return {
     t,
     title: batchTitle(b, ctx),
@@ -186,33 +213,40 @@ export function buildBatchDetail(ctx: VMContext): BatchDetailScreenProps | null 
       { label: t.biochar, value: b.litres ? `${nf(b.litres)} L` : "—" },
       { label: t.kiln, value: b.kiln || "—" },
       { label: t.date, value: b.date },
+      { label: t.credits, value: c ? `${nf(c, 2)}${b.creditsEstimated || b.credits == null ? ` (${t.estimate})` : ""}` : "—" },
+      { label: t.status, value: b.status === "approved" ? (b.adminDecision ? t.finalApproved : t.networkApproved) : statusView(b, ctx).label },
     ],
     days,
-    moisture: moist.length === 5 && b.day > 2 ? moist.map((m) => ({ val: m.val, wet: isWet(m.val) })) : null,
+    moisture: moist.length >= readings && readings > 0 && b.day > 2 ? moist.map((m) => ({ val: m.val, wet: isWet(m.val) })) : null,
     onBack: a.back,
   }
 }
 
 export function buildCredits(ctx: VMContext): CreditsScreenProps {
-  const { s, a, t, lg, nf } = ctx
+  const { s, a, t, nf } = ctx
   const c = creditsSummary(ctx)
-  const ex = s.batches.find((b) => b.status === "waiting") ?? s.batches.find((b) => b.litres) ?? { litres: 798 }
+  // How litres become credits, for this network's main feedstock (the backend's lab values).
+  const ex = s.batches.find((b) => b.litres && credit(b, ctx)) ?? s.batches.find((b) => b.litres)
+  const f = s.feedstocks.find((x) => x.name === (ex?.bio || "")) ?? s.feedstocks.find((x) => x.creditsPerL)
+  const per100 = f?.creditsPerL ? f.creditsPerL * 100 : 0
   return {
     t,
     unused: c.unused,
     toGo: c.toGo,
     pendText: c.pendText,
     pct: c.pct,
-    earned: nf(s.credits.earned),
-    sold: nf(s.credits.sold),
-    example: fill(t.example, { l: nf(ex.litres), c: nf(credit(ex.litres), 1) }),
+    earned: nf(s.credits.earned, 2),
+    sold: nf(s.credits.sold, 2),
+    factor: f && per100 ? fill(t.factorText, { f: f.name, c: nf(per100, 3) }) : t.factorNone,
+    example: ex ? fill(t.example, { l: nf(ex.litres), c: nf(credit(ex, ctx), 2) }) : "",
     history: s.history.map((h) => ({
-      icon: h.icon,
-      title: L(h.title, lg),
+      icon: (h.kind === "earned" ? "plus" : "hand-coins") as IconName,
+      title: h.title,
       date: h.date,
-      amount: (h.amt > 0 ? "+" : "−") + nf(Math.abs(h.amt), 1),
-      positive: h.amt > 0,
+      amount: h.amount === 0 ? "0" : (h.amount > 0 ? "+" : "−") + nf(Math.abs(h.amount), 2),
+      positive: h.amount > 0,
     })),
+    more: more(ctx, "history", s.historyPage.hasMore),
     onSell: () => a.openSheet("sell"),
   }
 }
@@ -227,7 +261,8 @@ export function buildSell(ctx: VMContext): SellSheetProps {
     unused: c.unused,
     value: c.value,
     buyer: a.setupItems("buyers")[0]?.name ?? "—",
-    belowGoal: s.credits.earned - s.credits.sold < CREDIT_GOAL,
+    belowGoal: s.credits.earned - s.credits.sold - s.credits.pending < (s.rules?.credits.payoutGoal ?? 0),
+    note: fill(t.sellNote, { g: ctx.nf(s.rules?.credits.payoutGoal ?? 0) }),
     onSend: a.sendSellRequest,
     onClose: a.closeSheet,
   }

@@ -1,12 +1,13 @@
 import {
   ArrowLeft, ArrowRight, BadgeCheck, BatteryMedium, BookOpen, Building2, CalendarCheck, Camera, Check, CheckCheck,
   ChevronDown, ChevronRight, Circle, CircleCheck, CircleDashed, CircleX, ClipboardCheck, CloudCheck, CloudOff,
-  CloudUpload, Coins, CookingPot, CornerDownLeft, Cylinder, Droplets, Eye, Flame, FlameKindling, FlaskConical, Gauge,
-  Hand, HandCoins, Hash, History, Hourglass, House, IdCard, Image, ImagePlus, Images, Info, Languages, Leaf, ListChecks,
+  CloudUpload, Coins, CookingPot, CornerDownLeft, Cylinder, Droplets, Eye, EyeOff, Flame, FlameKindling, FlaskConical, Gauge,
+  Hand, HandCoins, Hash, History, Hourglass, House, IdCard, Image, ImagePlus, Images, Info, KeyRound, Languages, Leaf, ListChecks,
   Loader, LoaderCircle, LocateFixed, Lock, LogOut, Mail, MapPin, MapPinCheck, MessageSquareWarning, Mountain,
   PartyPopper, Pencil, Phone, Play, Plus, Repeat, RotateCcw, Ruler, Send, Settings2, ShieldCheck, ShoppingBag, Shovel,
   Signal, Sprout, TestTube, ThumbsUp, Trash2, Trees, TriangleAlert, Truck, UserRound, Users, Video, Warehouse, Weight,
-  Wheat, Wifi, WifiOff, X, type LucideIcon, type LucideProps,
+  Wheat, Wifi, WifiOff, X, Menu, Headset, QrCode, Thermometer, Search, Package, Network, CirclePlus, ChevronUp, CircleUserRound,
+  type LucideIcon, type LucideProps,
 } from "lucide-react"
 
 /**
@@ -19,10 +20,10 @@ const ICONS = {
   "check-check": CheckCheck, "chevron-down": ChevronDown, "chevron-right": ChevronRight, circle: Circle,
   "circle-check": CircleCheck, "circle-dashed": CircleDashed, "circle-x": CircleX, "clipboard-check": ClipboardCheck,
   "cloud-check": CloudCheck, "cloud-off": CloudOff, "cloud-upload": CloudUpload, coins: Coins, "cooking-pot": CookingPot,
-  "corner-down-left": CornerDownLeft, cylinder: Cylinder, droplets: Droplets, eye: Eye, flame: Flame,
+  "corner-down-left": CornerDownLeft, cylinder: Cylinder, droplets: Droplets, eye: Eye, "eye-off": EyeOff, flame: Flame,
   "flame-kindling": FlameKindling, "flask-conical": FlaskConical, gauge: Gauge, hand: Hand, "hand-coins": HandCoins,
   hash: Hash, history: History, hourglass: Hourglass, house: House, "id-card": IdCard, image: Image,
-  "image-check": ImagePlus, images: Images, info: Info, languages: Languages, leaf: Leaf, "list-checks": ListChecks,
+  "image-check": ImagePlus, images: Images, info: Info, "key-round": KeyRound, languages: Languages, leaf: Leaf, "list-checks": ListChecks,
   loader: Loader, "loader-circle": LoaderCircle, "locate-fixed": LocateFixed, lock: Lock, "log-out": LogOut, mail: Mail,
   "map-pin": MapPin, "map-pin-check": MapPinCheck, "message-square-warning": MessageSquareWarning, mountain: Mountain,
   "party-popper": PartyPopper, pencil: Pencil, phone: Phone, play: Play, plus: Plus, repeat: Repeat,
@@ -30,7 +31,8 @@ const ICONS = {
   "shopping-bag": ShoppingBag, shovel: Shovel, signal: Signal, sprout: Sprout, "test-tube": TestTube,
   "thumbs-up": ThumbsUp, "trash-2": Trash2, trees: Trees, "triangle-alert": TriangleAlert, truck: Truck,
   "user-round": UserRound, users: Users, video: Video, warehouse: Warehouse, weight: Weight, wheat: Wheat, wifi: Wifi,
-  "wifi-off": WifiOff, x: X,
+  "wifi-off": WifiOff, x: X, menu: Menu, headset: Headset, "qr-code": QrCode, thermometer: Thermometer, search: Search,
+  package: Package, network: Network, "circle-plus": CirclePlus, "chevron-up": ChevronUp, "circle-user-round": CircleUserRound,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

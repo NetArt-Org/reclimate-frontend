@@ -1,4 +1,4 @@
-import { DAYS, REJECT_REASONS, SETUP, SETUP_FORMS } from "@/data/constants"
+import { DAYS, SETUP, SETUP_FORMS } from "@/data/constants"
 import type { LoginScreenProps } from "@/features/auth/LoginScreen"
 import type { EditProfileScreenProps } from "@/features/profile/EditProfileScreen"
 import type { ProfileScreenProps } from "@/features/profile/ProfileScreen"
@@ -11,32 +11,41 @@ import type { ReviewedItem } from "@/features/supervisor/ReviewedScreen"
 import type { UploadsScreenProps } from "@/features/uploads/UploadsScreen"
 import { isWet, mediaOf, moistureOf } from "@/lib/batch"
 import { L, fill, formatElapsed, nameParts } from "@/lib/format"
-import { PIN_LENGTH } from "@/store/useArtisanStore"
+import { canUseGoogle } from "@/lib/firebase"
+import { APP_VERSION } from "@/lib/native"
 import type { Batch, MediaFieldDef, MediaItem, Profile } from "@/types"
 import { batchTitle, batchYieldTitle, buildHeader, profileInfo, statusView, type VMContext } from "./context"
+import { more } from "./worker"
 
 /* ---------------- Supervisor ---------------- */
 
-/** The evidence a supervisor checks: every photo/video field of Day 2 (the burn). */
-const BURN_MEDIA = DAYS[1].steps.flatMap((st) => st.fields).filter((f): f is MediaFieldDef => f.type === "media")
+/** Day 2's photo/video fields — read when used, since the network's rules can change them (lib/rules). */
+const burnFields = () => DAYS[1].steps.flatMap((st) => st.fields).filter((f): f is MediaFieldDef => f.type === "media")
 
-const burnMedia = (b: Batch): MediaItem[] => [
-  ...BURN_MEDIA.flatMap((f) => mediaOf(b, f.k)),
+/** The evidence a supervisor checks: every photo/video field of Day 2 (the burn). */
+export const burnMedia = (b: Batch): MediaItem[] => [
+  ...burnFields().flatMap((f) => mediaOf(b, f.k)),
   ...moistureOf(b).flatMap((m) => (m?.ph ? [m.ph] : [])),
 ]
+
+/** Temperature readings of a batch ("680 · 700 °C"). */
+export const temps = (b: Batch) =>
+  Object.keys(b.v)
+    .filter((k) => /^temp\d*$/.test(k) && b.v[k])
+    .sort()
+    .map((k) => String(b.v[k]))
+    .join(" · ")
 
 export function buildReviewQueue(ctx: VMContext): ReviewQueueScreenProps {
   const { s, a, t } = ctx
   const waiting = s.batches.filter((b) => b.status === "waiting")
+  const counts = s.stats?.batches
   return {
     t,
     header: buildHeader(ctx),
-    loading: s.loading,
-    counts: {
-      toReview: waiting.length,
-      approved: s.batches.filter((b) => b.status === "approved" || b.status === "done").length,
-      rejected: s.batches.filter((b) => b.status === "rejected").length,
-    },
+    loading: s.loading && !s.stats,
+    // Site totals from the backend (not only the batches loaded on this phone).
+    counts: { toReview: counts?.waiting ?? waiting.length, approved: counts?.approved ?? 0, rejected: counts?.rejected ?? 0 },
     queue: waiting.map((b) => ({
       id: b.id,
       title: batchYieldTitle(b, ctx),
@@ -47,66 +56,68 @@ export function buildReviewQueue(ctx: VMContext): ReviewQueueScreenProps {
       extraMedia: Math.max(0, burnMedia(b).length - 4),
       onReview: () => a.openReview(b.id),
     })),
+    more: more(ctx, "waiting", s.batchPages.waiting.hasMore),
   }
 }
 
-export const buildReviewed = (ctx: VMContext): ReviewedItem[] =>
-  ctx.s.batches
+export const buildReviewed = (ctx: VMContext): { items: ReviewedItem[]; more: ReturnType<typeof more> } => ({
+  items: ctx.s.batches
     .filter((b) => ["approved", "rejected", "done"].includes(b.status))
     .map((b) => ({
       id: b.id,
       title: batchYieldTitle(b, ctx),
-      sub: `${b.kiln} · ${b.date}`,
+      sub: [b.kiln, b.date, b.adminDecision ? ctx.t.finalApproved : b.by].filter(Boolean).join(" · "),
       status: statusView(b, ctx),
       reason: b.status === "rejected" ? L(b.reason, ctx.lg) : null,
-    }))
+    })),
+  more: more(ctx, "all", ctx.s.batchPages.all.hasMore),
+})
 
 export function buildReviewBatch(ctx: VMContext): ReviewBatchScreenProps | null {
   const { s, a, t, nf } = ctx
   const b = s.view === "sreview" ? s.batches.find((x) => x.id === s.reviewId) : undefined
   if (!b) return null
   const burnTime =
-    b.v.burn && b.v.burnEnd
-      ? formatElapsed(Number(b.v.burn), Number(b.v.burnEnd)).slice(0, 5).replace(":", "h ") + "m"
-      : "—"
+    b.v.burn && b.v.burnEnd ? formatElapsed(Number(b.v.burn), Number(b.v.burnEnd)).slice(0, 5).replace(":", "h ") + "m" : "—"
+  const readings = s.rules?.moisture.readings ?? moistureOf(b).length
   return {
     t,
     title: batchTitle(b, ctx),
     sub: `${b.id} · ${b.kiln} · ${b.date}`,
     stats: [
-      { label: t.biomass, value: `${nf(b.kg)} kg` },
+      { label: t.biomass, value: b.kg ? `${nf(b.kg)} kg` : "—" },
       { label: t.biochar, value: `${nf(b.litres)} L` },
       { label: t.yield, value: b.kg ? `${nf((b.litres / b.kg) * 100)} L / 100 kg` : "—" },
       { label: t.burnTime, value: burnTime },
-      { label: t.temperature, value: b.v.temp ? `${b.v.temp} °C` : "—" },
+      { label: t.temperature, value: temps(b) ? `${temps(b)} °C` : "—" },
       { label: t.worker, value: nameParts(b.workerName ?? "").short || "—" },
     ],
     moisture: moistureOf(b).map((m) => ({ val: m.val, wet: isWet(m.val) })),
     groups: [
-      ...BURN_MEDIA.map((f) => {
+      ...burnFields().map((f) => {
         const items = mediaOf(b, f.k)
         return { label: L(f.label, ctx.lg), count: `${items.length}/${f.need}`, complete: items.length >= f.need, kind: f.kind, items }
       }),
-      (() => {
-        const items = moistureOf(b).flatMap((m) => (m?.ph ? [m.ph] : []))
-        return { label: t.meterPhotos, count: `${items.length}/5`, complete: items.length >= 5, kind: "photo" as const, items }
-      })(),
+      ...(readings
+        ? [
+            (() => {
+              const items = moistureOf(b).flatMap((m) => (m?.ph ? [m.ph] : []))
+              return { label: t.meterPhotos, count: `${items.length}/${readings}`, complete: items.length >= readings, kind: "photo" as const, items }
+            })(),
+          ]
+        : []),
     ],
-    onAccept: a.acceptReview,
-    onReject: a.openReject,
+    onAccept: () => a.acceptReview(),
+    onReject: () => a.openReject(),
     onBack: a.back,
   }
 }
 
-export const buildRejectSheet = ({ s, a, t, lg }: VMContext): RejectSheetProps => ({
+export const buildRejectSheet = ({ s, a, t }: VMContext): RejectSheetProps => ({
   t,
   open: s.sheet === "reject",
-  reasons: REJECT_REASONS.map((r) => ({
-    key: r.k,
-    label: L(r, lg),
-    selected: s.rejectReason === r.k,
-    onPick: () => a.pickRejectReason(r.k),
-  })),
+  // The reasons are the backend's, the same in every app.
+  reasons: s.rejectReasons.map((r) => ({ key: r.key, label: r.label, selected: s.rejectReason === r.key, onPick: () => a.pickRejectReason(r.key) })),
   note: s.rejectNote,
   onNoteChange: a.setRejectNote,
   canConfirm: !!s.rejectReason,
@@ -131,7 +142,7 @@ export function buildProfile(ctx: VMContext): ProfileScreenProps {
     lang: s.lang,
     slow: s.slow,
     isWorker: s.user === "worker",
-    pendingUploads: s.uploads.length,
+    pendingUploads: s.uploads.length + s.pendingRecords.length,
     onOpenPhoto: () => a.openSheet("photo"),
     onEdit: a.openEditProfile,
     onLangChange: a.setLang,
@@ -142,6 +153,12 @@ export function buildProfile(ctx: VMContext): ProfileScreenProps {
     onSwitchRole: a.switchRole,
     onRefresh: a.refresh,
     onLogout: () => a.openSheet("logout"),
+    version: fill(t.versionW, { v: APP_VERSION }),
+    ui: s.ui,
+    onUiChange: (ui) => a.setAccountType(ui === "classic" ? "existing" : "new"),
+    onPrivacy: () => a.openLink("privacy"),
+    onTerms: () => a.openLink("terms"),
+    onDeleteAccount: () => a.openSheet("deleteAccount"),
   }
 }
 
@@ -164,8 +181,8 @@ export function buildEditProfile(ctx: VMContext): EditProfileScreenProps | null 
       field("name", "user-round", t.fullName, "text", "Pak / Ibu …", nameBad ? t.nameRequired : null),
       field("phone", "phone", t.phoneLbl, "tel", "+62 …", phoneBad ? t.phoneRequired : null),
       field("village", "house", t.village, "text", t.villagePh, null),
-      field("email", "mail", t.email, "email", "name@email.com", null),
     ],
+    email: d.email,
     role: p.roleLabel,
     site: s.site,
     canSave: !nameBad && !phoneBad,
@@ -183,7 +200,7 @@ export const buildSetup = ({ a, t, lg }: VMContext): SetupScreenProps => ({
     key: c.key,
     icon: c.icon,
     name: L(c.name, lg),
-    count: `${a.setupItems(c.key).length} ${t.items}`,
+    count: `${a.setupItems(c.key).filter((x) => !x.pending).length} ${t.items}`,
     onOpen: () => a.openSetupList(i),
   })),
   onBack: a.back,
@@ -191,11 +208,16 @@ export const buildSetup = ({ a, t, lg }: VMContext): SetupScreenProps => ({
 
 export function buildSetupList({ s, a, t, lg }: VMContext): SetupListScreenProps {
   const cat = SETUP[s.setupIdx]
+  // The biomass reference is the network's (admin's) list: the app can only ask for a change.
+  const readOnly = cat.key === "bioref"
   return {
     t,
     name: L(cat.name, lg),
     icon: cat.icon,
-    items: a.setupItems(cat.key).map((x) => ({ id: x.id, label: x.name, sub: x.sub, onRemove: () => a.removeSetupItem(cat.key, x.id) })),
+    items: a.setupItems(cat.key).map((x) => ({
+      id: x.id, label: x.name, sub: x.sub, pending: !!x.pending, onRemove: readOnly ? null : () => a.removeSetupItem(cat.key, x.id),
+    })),
+    addLabel: cat.key === "kilns" ? t.requestKiln : cat.key === "bioref" ? t.requestDensity : t.addNew,
     onAdd: () => a.openAdd(cat.key),
     onBack: a.back,
   }
@@ -208,7 +230,7 @@ export function buildSetupAdd({ s, a, t, lg }: VMContext): SetupAddScreenProps |
   return {
     t,
     icon: cat.icon,
-    title: fill(t.addNewOf, { x: L(cat.name, lg).toLowerCase() }),
+    title: f.key === "kilns" ? t.requestKiln : f.key === "bioref" ? t.requestDensity : fill(t.addNewOf, { x: L(cat.name, lg).toLowerCase() }),
     fields: SETUP_FORMS[f.key].map((fd, i) => ({
       key: fd.k,
       label: L(fd.label, lg) + (i > 0 && !fd.req ? ` (${t.optional})` : ""),
@@ -224,10 +246,11 @@ export function buildSetupAdd({ s, a, t, lg }: VMContext): SetupAddScreenProps |
   }
 }
 
-export const buildSupervisors = ({ s, a, t, lg }: VMContext): SupervisorsScreenProps => ({
-  t,
-  people: s.supervisors.map((p) => ({ ...p, role: L(p.role, lg), onCall: () => a.callSupervisor(p.name) })),
-  onBack: a.back,
+export const buildSupervisors = (ctx: VMContext): SupervisorsScreenProps => ({
+  t: ctx.t,
+  people: ctx.s.supervisors.map((p) => ({ ...p, onCall: () => ctx.a.callPhone(p.name, p.phone) })),
+  more: more(ctx, "supervisors", ctx.s.supervisorsPage.hasMore),
+  onBack: ctx.a.back,
 })
 
 export const buildUploads = ({ s, a, t, lg }: VMContext): UploadsScreenProps => ({
@@ -248,31 +271,64 @@ export const buildUploads = ({ s, a, t, lg }: VMContext): UploadsScreenProps => 
 export const buildSiteSheet = ({ s, a, t }: VMContext): SiteSheetProps => ({
   open: s.sheet === "site",
   title: t.siteTitle,
-  // An account belongs to one site; an admin moves people between sites in the backend.
-  sites: s.site ? [{ name: s.site, selected: true, onPick: a.closeSheet }] : [],
+  // The person's sites (an admin assigns them); picking one reloads the app's data for it.
+  sites: s.sites.map((x) => ({ name: x.name, selected: x.id === s.me?.siteId, onPick: () => void a.switchSite(x.id) })),
   onClose: a.closeSheet,
 })
 
-/* ---------------- Login ---------------- */
+/* ---------------- Login & Register now ---------------- */
 
-export const buildLogin = ({ s, a, t }: VMContext): LoginScreenProps => ({
-  t,
-  lang: s.lang,
-  onLangChange: a.setLang,
-  accountType: s.accountType,
-  onAccountTypeChange: a.setAccountType,
-  roles: [
-    { value: "worker", icon: "shovel", title: t.roleWorker, sub: t.roleWorkerSub },
-    { value: "sup", icon: "clipboard-check", title: t.roleSup, sub: t.roleSupSub },
-  ],
-  role: s.loginRole,
-  onRoleChange: a.setLoginRole,
-  phone: s.loginPhone,
-  onPhoneChange: a.setLoginPhone,
-  pin: s.loginPin,
-  pinLength: PIN_LENGTH,
-  onPinChange: a.setLoginPin,
-  error: s.loginError,
-  busy: s.loginBusy,
-  onLogin: a.login,
-})
+export const buildLogin = ({ s, a, t }: VMContext): LoginScreenProps => {
+  const network = s.regOptions?.networks.find((n) => n.id === s.reg.networkId)
+  return {
+    t,
+    lang: s.lang,
+    onLangChange: a.setLang,
+    accountType: s.ui === "classic" ? "existing" : "new",
+    onAccountTypeChange: a.setAccountType,
+    step: s.authStep,
+    onStepChange: a.setAuthStep,
+    email: s.loginEmail,
+    onEmailChange: a.setLoginEmail,
+    password: s.loginPassword,
+    onPasswordChange: a.setLoginPassword,
+    newPassword: s.newPassword,
+    onNewPasswordChange: a.setNewPassword,
+    newPassword2: s.newPassword2,
+    onNewPassword2Change: a.setNewPassword2,
+    showGoogle: canUseGoogle(),
+    error: s.loginError,
+    info: s.loginInfo,
+    busy: s.loginBusy,
+    onLogin: () => void a.login(),
+    onGoogle: () => void a.loginWithGoogle(),
+    onSendReset: () => void a.sendPasswordReset(),
+    onSavePassword: () => void a.saveNewPassword(),
+    onCancelPassword: a.cancelNewPassword,
+    register: {
+      name: s.reg.name,
+      password2: s.reg.password2,
+      phone: s.reg.phone,
+      village: s.reg.village,
+      role: s.reg.role,
+      networkId: s.reg.networkId,
+      siteId: s.reg.siteId,
+      roles: s.regOptions?.roles ?? [],
+      networks: (s.regOptions?.networks ?? []).map((n) => ({ value: n.id, label: n.name })),
+      sites: (network?.sites ?? []).map((x) => ({ value: x.id, label: x.name })),
+      loadingOptions: !s.regOptions && s.authStep === "registerDetails",
+      note: s.regNote,
+      onChange: (key, value) => a.setReg(key, value),
+      onCreateAccount: () => void a.registerAccount(),
+      onGoogle: () => void a.registerWithGoogle(),
+      onSubmit: () => void a.submitRegistration(),
+      onCheck: () => void a.checkApproval(),
+      onApplyAgain: a.applyAgain,
+      onLogout: a.cancelNewPassword,
+      onConfirmVerified: () => void a.confirmVerified(),
+      onResend: () => void a.resendVerification(),
+    },
+    onPrivacy: () => a.openLink("privacy"),
+    onTerms: () => a.openLink("terms"),
+  }
+}

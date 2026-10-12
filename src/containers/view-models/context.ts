@@ -1,4 +1,4 @@
-import { BIO, CREDIT_FACTOR, DAYS, STATUS_META } from "@/data/constants"
+import { DAYS, STATUS_META } from "@/data/constants"
 import type { Dict } from "@/data/i18n"
 import type { StatusView } from "@/features/shared/types"
 import type { GreetingHeaderProps } from "@/features/shared/GreetingHeader"
@@ -20,9 +20,17 @@ export const createContext = (s: AppState, a: ArtisanActions, t: Dict): VMContex
   s, a, t, lg: s.lang, nf: (n, d = 0) => formatNumber(n, s.lang, d),
 })
 
-export const credit = (litres: number) => litres * CREDIT_FACTOR
+/**
+ * Credits of a batch: the backend's figure (an assessor's, or its estimate from litres and the feedstock's lab
+ * values); for a batch not saved yet, the same estimate from the network's feedstock values.
+ */
+export const credit = (b: Pick<Batch, "credits" | "litres" | "bio" | "v">, { s }: Pick<VMContext, "s">) => {
+  if (b.credits != null) return b.credits
+  const f = s.feedstocks.find((x) => x.name === String(b.v?.btype ?? b.bio ?? ""))
+  return f?.creditsPerL ? b.litres * f.creditsPerL : 0
+}
 
-export const bioName = (b: Batch, { t, lg }: VMContext) => (b.bio ? L(BIO[b.bio] ?? b.bio, lg) : t.newBatchT)
+export const bioName = (b: Batch, { t }: VMContext) => b.bio || String(b.v.btype ?? "") || t.newBatchT
 
 /** "Corn cob · 898 kg" */
 export const batchTitle = (b: Batch, ctx: VMContext) => (b.kg ? `${bioName(b, ctx)} · ${ctx.nf(b.kg)} kg` : ctx.t.newBatchT)
@@ -31,8 +39,10 @@ export const batchTitle = (b: Batch, ctx: VMContext) => (b.kg ? `${bioName(b, ct
 export const batchYieldTitle = (b: Batch, ctx: VMContext) =>
   `${bioName(b, ctx)} · ${ctx.nf(b.kg)} kg → ${ctx.nf(b.litres)} L`
 
-export const statusView = (b: Batch, { lg }: VMContext): StatusView => {
+export const statusView = (b: Batch, { lg, t }: VMContext): StatusView => {
   const m = STATUS_META[b.status]
+  // Accepted by the supervisor is not final until the admin approves it.
+  if (b.status === "approved" && !b.adminDecision) return { label: t.networkApproved, icon: "badge-check", tone: "info" }
   return { label: L(m.label, lg), icon: m.icon, tone: m.tone }
 }
 
@@ -75,7 +85,6 @@ export const buildHeader = (ctx: VMContext): GreetingHeaderProps => {
     online: s.online,
     onlineLabel: s.online ? t.online : t.offline,
     site: s.site,
-    onToggleOnline: a.toggleOnline,
     onOpenPhoto: () => a.openSheet("photo"),
     onOpenSite: () => a.openSheet("site"),
   }

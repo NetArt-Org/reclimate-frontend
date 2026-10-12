@@ -28,6 +28,8 @@ export interface EditProfileScreenProps {
   fields: EditField[]
   role: string
   site: string
+  /** The login email: shown, changed only by an admin. */
+  email: string
   canSave: boolean
   onOpenPhoto: () => void
   onSave: () => void
@@ -83,6 +85,13 @@ export function EditProfileScreen(p: EditProfileScreenProps) {
       ))}
 
       <CardList className="rounded-[18px]">
+        {p.email && (
+          <div className="flex items-center gap-3 border-b border-line-soft py-3">
+            <Icon name="mail" size={20} className="text-ink-subtle" />
+            <div className="flex-1 text-sm font-bold text-ink-muted">{t.loginEmail}</div>
+            <div className="min-w-0 truncate text-right text-[15px] font-bold">{p.email}</div>
+          </div>
+        )}
         <div className="flex items-center gap-3 border-b border-line-soft py-3">
           <Icon name="id-card" size={20} className="text-ink-subtle" />
           <div className="flex-1 text-sm font-bold text-ink-muted">{t.roleLbl}</div>

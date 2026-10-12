@@ -13,6 +13,8 @@ export interface SellSheetProps {
   value: string
   buyer: string
   belowGoal: boolean
+  /** "Buyers pay once you reach {goal} credits…", with the admin's payout goal. */
+  note: string
   onSend: () => void
   onClose: () => void
 }
@@ -38,7 +40,7 @@ export function SellSheet(p: SellSheetProps) {
             </div>
             {p.belowGoal && (
               <Banner tone="warn" icon="info">
-                {t.sellNote}
+                {p.note}
               </Banner>
             )}
             <Button variant="flat" onClick={p.onSend}>

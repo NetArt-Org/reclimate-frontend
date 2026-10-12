@@ -1,6 +1,6 @@
 "use client"
 
-import { EmptyState, Icon, MediaThumb, Screen, SectionTitle } from "@/components/common"
+import { EmptyState, Icon, MediaThumb, Screen, SectionTitle, LoadMore, type MoreProps } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -28,9 +28,10 @@ export interface ReviewQueueScreenProps {
   loading: boolean
   counts: { toReview: number; approved: number; rejected: number }
   queue: ReviewQueueItem[]
+  more?: MoreProps | null
 }
 
-export function ReviewQueueScreen({ t, header, loading, counts, queue }: ReviewQueueScreenProps) {
+export function ReviewQueueScreen({ t, header, loading, counts, queue, more }: ReviewQueueScreenProps) {
   return (
     <Screen>
       <GreetingHeader {...header} />
@@ -94,6 +95,7 @@ export function ReviewQueueScreen({ t, header, loading, counts, queue }: ReviewQ
           </Button>
         </Card>
       ))}
+      <LoadMore more={more} />
     </Screen>
   )
 }

@@ -572,3 +572,28 @@ export function ProgressChip({ label, done, small = false }: { label: string; do
     </Badge>
   )
 }
+
+/** "Load more" at the end of a paged list (the backend sends long lists one page at a time). */
+export interface MoreProps {
+  label: string
+  loading: boolean
+  onPress: () => void
+}
+
+export function LoadMore({ more, className }: { more: MoreProps | null | undefined; className?: string }) {
+  if (!more) return null
+  return (
+    <button
+      type="button"
+      onClick={more.onPress}
+      disabled={more.loading}
+      className={cn(
+        "flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-line bg-surface text-[15px] font-bold text-brand disabled:opacity-60",
+        className
+      )}
+    >
+      {more.loading ? <Icon name="loader-circle" size={18} className="animate-spin" /> : <Icon name="chevron-down" size={18} />}
+      {more.label}
+    </button>
+  )
+}

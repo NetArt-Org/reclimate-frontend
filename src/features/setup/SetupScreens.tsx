@@ -2,8 +2,7 @@
 
 import {
   BackButton, FieldLabel, FieldNote, FieldShell, Icon, IconTile, ListRow, PageTitle, Screen, ScreenWithFooter,
-  type IconName,
-} from "@/components/common"
+  type IconName, LoadMore, type MoreProps } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { CardList } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -48,7 +47,10 @@ export interface SetupListScreenProps {
   t: Dict
   name: string
   icon: IconName
-  items: { id: string; label: string; sub: string; onRemove: () => void }[]
+  /** `onRemove` is null where the list cannot be changed from the app (e.g. the biomass reference). */
+  items: { id: string; label: string; sub: string; pending: boolean; onRemove: (() => void) | null }[]
+  /** Text for the "add" button (adding a kiln or bulk density is a request to the admin). */
+  addLabel: string
   onAdd: () => void
   onBack: () => void
 }
@@ -66,8 +68,18 @@ export function SetupListScreen(p: SetupListScreenProps) {
             className="py-3.5"
             leading={<IconTile icon={p.icon} size={40} iconSize={20} radius="rounded-xl" />}
             title={<span className="text-base font-bold">{it.label}</span>}
-            sub={it.sub ? <span className="text-sm">{it.sub}</span> : undefined}
+            sub={
+              it.sub || it.pending ? (
+                <span className="text-sm">
+                  {it.sub}
+                  {it.pending && <span className="ml-1 font-bold text-warn">{(it.sub ? "· " : "") + t.pendingApproval}</span>}
+                </span>
+              ) : undefined
+            }
             trailing={
+              it.pending ? (
+                <Icon name="hourglass" size={19} className="flex-none text-warn" />
+              ) : !it.onRemove ? undefined : (
               <button
                 type="button"
                 onClick={it.onRemove}
@@ -76,6 +88,7 @@ export function SetupListScreen(p: SetupListScreenProps) {
               >
                 <Icon name="trash-2" size={19} />
               </button>
+              )
             }
           />
         ))}
@@ -83,7 +96,7 @@ export function SetupListScreen(p: SetupListScreenProps) {
       </CardList>
       <Button variant="dashed" size="md" className="h-[54px] text-base" onClick={p.onAdd}>
         <Icon name="plus" size={20} />
-        {t.addNew}
+        {p.addLabel}
       </Button>
     </Screen>
   )
@@ -145,16 +158,17 @@ export function SetupAddScreen(p: SetupAddScreenProps) {
 export interface SupervisorsScreenProps {
   t: Dict
   people: { name: string; ini: string; role: string; phone: string; onCall: () => void }[]
+  more?: MoreProps | null
   onBack: () => void
 }
 
-export function SupervisorsScreen({ t, people, onBack }: SupervisorsScreenProps) {
+export function SupervisorsScreen({ t, people, more, onBack }: SupervisorsScreenProps) {
   return (
     <Screen sub className="gap-3.5">
       <BackButton label={t.back} onClick={onBack} />
       <PageTitle size="md">{t.supervisors}</PageTitle>
-      {people.map((p) => (
-        <div key={p.name} className="flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3.5">
+      {people.map((p, i) => (
+        <div key={`${p.name}-${i}`} className="flex items-center gap-3 rounded-[18px] border border-line bg-surface p-3.5">
           <div className="flex size-12 flex-none items-center justify-center rounded-full bg-brand font-extrabold text-white">
             {p.ini}
           </div>
@@ -169,6 +183,7 @@ export function SupervisorsScreen({ t, people, onBack }: SupervisorsScreenProps)
           </Button>
         </div>
       ))}
+      <LoadMore more={more} />
     </Screen>
   )
 }

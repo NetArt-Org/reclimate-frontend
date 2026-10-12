@@ -1,6 +1,6 @@
 "use client"
 
-import { Banner, Icon, PageTitle, Screen, Segments, StatusBadge } from "@/components/common"
+import { Banner, Icon, LoadMore, PageTitle, Screen, Segments, StatusBadge, type MoreProps } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import type { Dict } from "@/data/i18n"
 import type { StatusView } from "../shared/types"
@@ -35,7 +35,7 @@ const dotClass: Record<StatusView["tone"], string> = {
   danger: "bg-danger shadow-[0_0_0_4px_var(--color-danger-soft)]",
 }
 
-export function ProcessScreen({ t, batches }: { t: Dict; batches: BatchListItem[] }) {
+export function ProcessScreen({ t, batches, more }: { t: Dict; batches: BatchListItem[]; more?: MoreProps | null }) {
   return (
     <Screen className="gap-0">
       <PageTitle>{t.yourWork}</PageTitle>
@@ -85,6 +85,7 @@ export function ProcessScreen({ t, batches }: { t: Dict; batches: BatchListItem[
           </div>
         </div>
       ))}
+      <LoadMore more={more} className="mt-1" />
     </Screen>
   )
 }

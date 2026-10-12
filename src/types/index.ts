@@ -1,4 +1,7 @@
 import type { IconName } from "@/components/common/Icon"
+import type { FieldRules, HistoryEntry, RejectReason } from "@/lib/api/types"
+
+export type { FieldRules, HistoryEntry, RejectReason }
 
 export type Lang = "en" | "id"
 export type Role = "worker" | "sup"
@@ -18,7 +21,7 @@ export interface MediaItem {
   pend: boolean
   kind?: "photo" | "video"
   /** Set once the file is on the server. */
-  remoteId?: number
+  remoteId?: string
   url?: string
   thumb?: string
 }
@@ -52,11 +55,20 @@ export interface Batch {
   fixClear?: string
   fixing?: boolean
   /** Server id; absent until the batch has been saved to the backend. */
-  remoteId?: number
+  remoteId?: string
+  /** Site the batch belongs to (set when it is started on this phone). */
+  siteId?: string | null
   workerName?: string
-  /** Supervisor's decision, as sent to the backend (see REJECT_REASONS). */
+  /** Reviewer's decision, as sent to the backend (a backend reject-reason key). */
   rejectKey?: string | null
   rejectNote?: string
+  /** A supervisor decided on this phone; the decision is sent as a review. */
+  reviewing?: boolean
+  /** The decision is the admin's final one, not a supervisor's review. */
+  adminDecision?: boolean
+  /** Carbon credits of the batch (t CO₂e) from the backend, and whether it is still an estimate. */
+  credits?: number | null
+  creditsEstimated?: boolean
 }
 
 /* ------------------------------------------------------------------ */
@@ -73,13 +85,17 @@ export interface ChoiceOption {
 interface FieldBase {
   k: string
   label: Localized
+  /** Not needed to finish the step. */
+  optional?: boolean
 }
 
 export interface ChoiceFieldDef extends FieldBase {
   type: "choice"
   opts?: ChoiceOption[]
-  /** Build options dynamically from site-setup lists. */
-  from?: "source" | "bioref" | "kilns" | "bags" | "to"
+  /** Build options from the backend's lists (site setup, network choices). */
+  from?: "source" | "bioref" | "kilns" | "bags" | "to" | "mix" | "vehicles" | "measure" | "sample"
+  /** Only shown when another field has this value (e.g. the vehicle when transport is "Vehicle"). */
+  when?: { k: string; eq: string }
   /** Setup category the "Add new …" button writes to. */
   addKey?: string
 }
@@ -90,8 +106,10 @@ export interface NumberFieldDef extends FieldBase {
   units?: string[]
   /** Key that stores the selected unit when `units` is set. */
   uk?: string
-  /** Static hint, or a computed one ("avail" litres / "bags"). */
-  hint?: Localized | "avail" | "bags"
+  /** Static hint, or a computed one ("avail" litres / "bags" / "min" from the rules). */
+  hint?: Localized | "avail" | "bags" | "min"
+  /** Lowest accepted value (from the network's rules). */
+  min?: number
 }
 
 export interface MediaFieldDef extends FieldBase {
@@ -104,6 +122,8 @@ export interface MediaFieldDef extends FieldBase {
 export interface MoistureFieldDef extends FieldBase {
   type: "moist"
   tip: Localized
+  /** Readings needed (each with a meter photo), from the network's rules. */
+  readings: number
 }
 
 export interface TimerFieldDef extends FieldBase {
@@ -146,18 +166,22 @@ export interface SetupItem {
   id: string
   name: string
   sub: string
+  /** Asked for and waiting for the admin (a kiln or a bulk density). */
+  pending?: boolean
 }
 
 export interface SetupList {
   key: string
   items: SetupItem[]
+  /** More items on the server than loaded so far. */
+  hasMore?: boolean
+  page?: number
 }
 
 export interface SetupCategoryDef {
   key: string
   icon: IconName
   name: Localized
-  items: string[]
 }
 
 export interface SetupFormFieldDef {
@@ -177,27 +201,11 @@ export interface Profile {
 }
 
 export interface Supervisor {
+  id?: string
   name: string
   ini: string
-  role: Localized
+  role: string
   phone: string
-}
-
-export interface RejectReason {
-  k: string
-  en: string
-  id: string
-  /** Day-2 step the worker is sent back to. */
-  step: number
-  /** Batch value cleared so it must be captured again. */
-  clear: string
-}
-
-export interface CreditHistoryEntry {
-  icon: IconName
-  title: Localized
-  date: string
-  amt: number
 }
 
 export type UploadStatus = "waiting" | "uploading" | "failed"
@@ -210,22 +218,42 @@ export interface UploadItem {
   kind: "photo" | "video"
   /** Batch the file belongs to; absent for a profile photo. */
   bid?: string
+  /** Classic-app record (waiting to be sent) the file belongs to. */
+  rid?: string
   avatar?: boolean
   at: string
 }
 
 /** The signed-in account, as the backend knows it. */
 export interface Session {
-  id: number
+  id: string
   role: Role
-  siteId: number | null
+  /** Site new batches and list items go to; null until an admin assigns one. */
+  siteId: string | null
+  /** Must choose their own password (the admin gave a temporary one). */
+  mustChangePassword?: boolean
 }
 
 /** A change made on the phone that still has to reach the backend. */
 export type OutboxOp =
   | { id: string; kind: "setupAdd"; tempId: string; category: string; name: string; detail: string }
-  | { id: string; kind: "setupRemove"; remoteId: number }
+  | { id: string; kind: "setupRemove"; category: string; remoteId: string }
   | { id: string; kind: "profile"; data: Profile }
-  | { id: string; kind: "avatar"; mediaId: number | null }
-  | { id: string; kind: "sell"; credits: number }
-  | { id: string; kind: "lang"; lang: Lang }
+  | { id: string; kind: "avatar"; mediaId: string | null }
+  | { id: string; kind: "sell" }
+
+/** A Classic-app record (biomass collection, mixing, packaging, application) made on the phone, not yet sent. */
+export interface PendingRecord {
+  id: string
+  kind: "collections" | "mixings" | "packagings" | "applications"
+  /** Site it was made at. */
+  siteId: string | null
+  /** The form values; photos/videos as MediaItems until they are uploaded. */
+  data: Record<string, string | number | MediaItem[] | null | undefined>
+  at: string
+  /** The backend refused it (the message); kept so the worker can see why. */
+  error?: string
+}
+
+/** Which layout the app shows: the step-by-step app, or the Classic app existing users know. */
+export type UiVariant = "new" | "classic"

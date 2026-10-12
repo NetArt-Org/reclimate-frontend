@@ -13,7 +13,6 @@ export interface GreetingHeaderProps {
   online: boolean
   onlineLabel: string
   site: string
-  onToggleOnline: () => void
   onOpenPhoto: () => void
   onOpenSite: () => void
 }
@@ -28,17 +27,17 @@ export function GreetingHeader(p: GreetingHeaderProps) {
           <div className="text-[15px] text-ink-muted">{p.hello}</div>
           <div className="text-[21px] font-extrabold tracking-[-.3px]">{p.name}</div>
         </div>
-        <button
-          type="button"
-          onClick={p.onToggleOnline}
+        {/* The phone's real connection: work is saved on the phone and sent when it is back online. */}
+        <div
+          role="status"
           className={cn(
-            "flex h-10 cursor-pointer items-center gap-[7px] rounded-full px-3.5 text-sm font-bold active:scale-95",
+            "flex h-10 items-center gap-[7px] rounded-full px-3.5 text-sm font-bold",
             p.online ? "bg-success-soft text-success" : "bg-warn-soft text-warn"
           )}
         >
           <Icon name={p.online ? "wifi" : "wifi-off"} size={17} />
           <span>{p.onlineLabel}</span>
-        </button>
+        </div>
       </div>
       <button
         type="button"

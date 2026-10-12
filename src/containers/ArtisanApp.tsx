@@ -11,7 +11,7 @@ import { CreditsScreen } from "@/features/credits/CreditsScreen"
 import { SellSheet } from "@/features/credits/SellSheet"
 import { HomeScreen } from "@/features/home/HomeScreen"
 import { EditProfileScreen } from "@/features/profile/EditProfileScreen"
-import { LogoutSheet, PhotoSheet } from "@/features/profile/ProfileSheets"
+import { DeleteAccountSheet, LogoutSheet, PhotoSheet } from "@/features/profile/ProfileSheets"
 import { ProfileScreen } from "@/features/profile/ProfileScreen"
 import { SetupAddScreen, SetupListScreen, SetupScreen, SupervisorsScreen } from "@/features/setup/SetupScreens"
 import { SiteSheet } from "@/features/shared/SiteSheet"
@@ -24,22 +24,22 @@ import { CameraOverlay } from "@/features/wizard/CameraOverlay"
 import { CelebrationOverlay } from "@/features/wizard/CelebrationOverlay"
 import { StartSheet } from "@/features/wizard/StartSheet"
 import { WizardScreen } from "@/features/wizard/WizardScreen"
-import { useArtisanStore, type StoreOptions, type Tab } from "@/store/useArtisanStore"
+import type { ArtisanStore, Tab } from "@/store/useArtisanStore"
 import { createContext, profileInfo } from "./view-models/context"
 import {
   buildEditProfile, buildLogin, buildProfile, buildRejectSheet, buildReviewBatch, buildReviewQueue, buildReviewed,
   buildSetup, buildSetupAdd, buildSetupList, buildSiteSheet, buildSupervisors, buildUploads,
 } from "./view-models/other"
 import { buildCamera, buildCelebration, buildStartOptions, buildWizard } from "./view-models/wizard"
-import { buildBatchDetail, buildCredits, buildHome, buildProcess, buildSell } from "./view-models/worker"
+import { buildBatchDetail, buildCredits, buildHome, buildProcess, buildSell, more } from "./view-models/worker"
 
 /**
- * The one "outer page". It owns all app data (via useArtisanStore), turns it
- * into plain props with the view-model builders, and renders pure feature
- * screens. Feature components never read the store themselves.
+ * The step-by-step app (new users). It gets all app data from the main page (app/page.tsx) as a prop, turns it
+ * into plain props with the view-model builders, and renders pure feature screens. Feature components never read
+ * the store or the API themselves. The sign-in screens are shared by both layouts and live here.
  */
-export function ArtisanApp(options: StoreOptions) {
-  const { state: s, actions: a, t } = useArtisanStore(options)
+export function ArtisanApp({ store }: { store: ArtisanStore }) {
+  const { state: s, actions: a, t } = store
   const ctx = createContext(s, a, t)
 
   const isWorker = s.user === "worker"
@@ -64,10 +64,10 @@ export function ArtisanApp(options: StoreOptions) {
       <main className="relative min-h-0 flex-1">
         {/* ---- tab screens ---- */}
         {noView && isWorker && s.tab === "home" && <HomeScreen {...buildHome(ctx)} />}
-        {noView && isWorker && s.tab === "process" && <ProcessScreen t={t} batches={buildProcess(ctx)} />}
+        {noView && isWorker && s.tab === "process" && <ProcessScreen t={t} batches={buildProcess(ctx)} more={more(ctx, "all", s.batchPages.all.hasMore)} />}
         {noView && isWorker && s.tab === "credits" && <CreditsScreen {...buildCredits(ctx)} />}
         {noView && isSup && s.tab === "review" && <ReviewQueueScreen {...buildReviewQueue(ctx)} />}
-        {noView && isSup && s.tab === "history" && <ReviewedScreen t={t} items={buildReviewed(ctx)} />}
+        {noView && isSup && s.tab === "history" && <ReviewedScreen t={t} {...buildReviewed(ctx)} />}
         {noView && s.user && s.tab === "profile" && <ProfileScreen {...buildProfile(ctx)} />}
 
         {/* ---- pushed views ---- */}
@@ -118,6 +118,7 @@ export function ArtisanApp(options: StoreOptions) {
       />
       <RejectSheet {...buildRejectSheet(ctx)} />
       <LogoutSheet t={t} open={s.sheet === "logout"} onConfirm={a.logout} onClose={a.closeSheet} />
+      <DeleteAccountSheet t={t} open={s.sheet === "deleteAccount"} busy={s.loginBusy} onConfirm={() => void a.deleteAccount()} onClose={a.closeSheet} />
 
       {/* ---- full-screen overlays ---- */}
       {camera && <CameraOverlay t={t} cam={camera} />}

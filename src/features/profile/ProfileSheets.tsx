@@ -92,3 +92,23 @@ export function LogoutSheet({
     </Sheet>
   )
 }
+
+/** "Delete your account?" — Google Play requires apps with sign-up to offer this. */
+export function DeleteAccountSheet({ t, open, busy, onConfirm, onClose }: { t: Dict; open: boolean; busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent>
+        <SheetTitle>{t.deleteTitle}</SheetTitle>
+        <div className="text-base text-ink-muted">{t.deleteSub}</div>
+        <div className="mt-1.5 flex flex-col gap-2.5">
+          <Button variant="danger" size="lg" className="rounded-2xl" onClick={onConfirm} disabled={busy}>
+            {busy ? <Icon name="loader-circle" size={20} className="animate-spin" /> : t.deleteConfirm}
+          </Button>
+          <Button variant="neutral" size="lg" className="rounded-2xl" onClick={onClose} disabled={busy}>
+            {t.cancel}
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}

@@ -15,8 +15,38 @@ export const formatNumber = (n: number, lang: Lang, digits = 0) =>
     maximumFractionDigits: digits,
   })
 
-export const formatRupiahMillions = (rupiah: number, lang: Lang) =>
-  `Rp ${formatNumber(rupiah / 1e6, lang, 1)} ${lang === "id" ? "juta" : "million"}`
+/** Money in the currency the admin set (large amounts shortened: "Rp 1,2 jt", "IDR 1.2M"). */
+export const formatMoney = (amount: number, currency: string, lang: Lang) => {
+  try {
+    return new Intl.NumberFormat(lang === "id" ? "id-ID" : "en-US", {
+      style: "currency",
+      currency: currency || "IDR",
+      notation: Math.abs(amount) >= 1e6 ? "compact" : "standard",
+      maximumFractionDigits: Math.abs(amount) >= 1e6 ? 1 : 0,
+    }).format(amount)
+  } catch {
+    return `${currency} ${formatNumber(amount, lang)}`
+  }
+}
+
+/** ISO date → "23/09/2026". */
+export const formatDay = (iso: string | null | undefined) => {
+  if (!iso) return ""
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? "" : `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+/** ISO date → "03:19 PM". */
+export const formatTime = (iso: string | number | null | undefined) => {
+  if (iso == null || iso === "") return ""
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
+}
+
+/** Litres → m³ with 3 decimals, as the Classic app shows volumes. */
+export const m3 = (litres: number, lang: Lang) => formatNumber(litres / 1000, lang, 3)
+
+const pad2 = (n: number) => String(n).padStart(2, "0")
 
 const pad = (n: number) => String(n).padStart(2, "0")
 

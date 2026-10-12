@@ -1,6 +1,6 @@
 "use client"
 
-import { Icon, ListRow, PageTitle, Screen, SectionTitle, type IconName } from "@/components/common"
+import { Icon, ListRow, PageTitle, Screen, SectionTitle, type IconName, LoadMore, type MoreProps } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardList } from "@/components/ui/card"
 import type { Dict } from "@/data/i18n"
@@ -17,6 +17,9 @@ export interface CreditsScreenProps {
   sold: string
   example: string
   history: { icon: IconName; title: string; date: string; amount: string; positive: boolean }[]
+  more?: MoreProps | null
+  /** How litres turn into credits for this network's biochar (from the backend's lab values). */
+  factor: string
   onSell: () => void
 }
 
@@ -86,7 +89,7 @@ export function CreditsScreen(p: CreditsScreenProps) {
         </div>
         <div className="rounded-[14px] border-[1.5px] border-dashed border-clay-line bg-sand p-3">
           <div className="font-mono text-[11px] tracking-[.4px] text-clay">{t.factorLbl}</div>
-          <div className="mt-1 text-base font-extrabold">10 L biochar = 1 t CO₂ = 1 credit</div>
+          <div className="mt-1 text-base font-extrabold">{p.factor}</div>
           <div className="mt-1.5 text-sm leading-[1.4] text-ink-muted">{p.example}</div>
         </div>
       </Card>
@@ -117,6 +120,7 @@ export function CreditsScreen(p: CreditsScreenProps) {
           />
         ))}
       </CardList>
+      <LoadMore more={p.more} />
     </Screen>
   )
 }

@@ -32,6 +32,14 @@ export interface ProfileScreenProps {
   onSwitchRole: () => void
   onRefresh: () => void
   onLogout: () => void
+  /** "Version 2.7.0" — the installed app's version. */
+  version: string
+  /** The app layout (the Classic app existing users know, or this one). */
+  ui: "new" | "classic"
+  onUiChange: (ui: "new" | "classic") => void
+  onPrivacy: () => void
+  onTerms: () => void
+  onDeleteAccount: () => void
 }
 
 const Chevron = () => <Icon name="chevron-right" size={20} className="text-ink-subtle" />
@@ -75,6 +83,20 @@ export function ProfileScreen(p: ProfileScreenProps) {
         />
       </Card>
 
+      <Card className="flex items-center gap-3 px-4 py-3.5">
+        <Icon name="settings-2" size={22} className="text-brand" />
+        <div className="flex-1 text-base font-bold">{t.uiSwitch}</div>
+        <Segmented
+          value={p.ui}
+          onChange={p.onUiChange}
+          itemClassName="h-10"
+          options={[
+            { value: "classic", label: t.uiClassic },
+            { value: "new", label: t.uiNew },
+          ]}
+        />
+      </Card>
+
       <Card className="overflow-hidden">
         <SettingsRow
           icon="gauge"
@@ -114,11 +136,19 @@ export function ProfileScreen(p: ProfileScreenProps) {
         <SettingsRow icon="rotate-ccw" title={t.reset} onClick={p.onRefresh} />
       </Card>
 
+      <Card className="overflow-hidden">
+        <SettingsRow icon="shield-check" title={t.privacyPolicy} onClick={p.onPrivacy} trailing={<Chevron />} />
+        <SettingsRow icon="book-open" title={t.termsOfUse} onClick={p.onTerms} trailing={<Chevron />} />
+      </Card>
+
       <Button variant="danger-soft" size="md" className="h-[54px]" onClick={p.onLogout}>
         <Icon name="log-out" size={20} />
         {t.logout}
       </Button>
-      <p className="text-center text-[13px] text-ink-muted">{t.version}</p>
+      <button type="button" onClick={p.onDeleteAccount} className="cursor-pointer py-1 text-center text-[15px] font-bold text-danger">
+        {t.deleteAccount}
+      </button>
+      <p className="text-center text-[13px] text-ink-muted">{p.version}</p>
     </Screen>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { PageTitle, Screen, StatusBadge } from "@/components/common"
+import { LoadMore, PageTitle, Screen, StatusBadge, type MoreProps } from "@/components/common"
 import { Card } from "@/components/ui/card"
 import type { Dict } from "@/data/i18n"
 import type { StatusView } from "../shared/types"
@@ -13,7 +13,7 @@ export interface ReviewedItem {
   reason: string | null
 }
 
-export function ReviewedScreen({ t, items }: { t: Dict; items: ReviewedItem[] }) {
+export function ReviewedScreen({ t, items, more }: { t: Dict; items: ReviewedItem[]; more?: MoreProps | null }) {
   return (
     <Screen className="gap-3">
       <div className="mb-1.5">
@@ -33,6 +33,7 @@ export function ReviewedScreen({ t, items }: { t: Dict; items: ReviewedItem[] })
           )}
         </Card>
       ))}
+      <LoadMore more={more} />
     </Screen>
   )
 }

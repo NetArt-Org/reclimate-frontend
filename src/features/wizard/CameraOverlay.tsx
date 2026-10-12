@@ -19,11 +19,11 @@ export interface CameraViewModel {
   slow: boolean
   /** Most recent capture for this field. */
   last: MediaItem | null
+  /** Video length to record (seconds), from the network's rules; 0 = until stopped. */
+  seconds: number
   onCapture: (file: Blob) => void
   onClose: () => void
 }
-
-const VIDEO_SECONDS = 5
 
 const Corner = ({ className }: { className: string }) => (
   <div className={cn("absolute size-[34px] border-white", className)} />
@@ -41,7 +41,10 @@ const canRecord = () => typeof MediaRecorder !== "undefined"
 export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  // A separate input without `capture` for Gallery: with `capture`, Android and iOS open the camera instead.
+  const galleryRef = useRef<HTMLInputElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
   const [live, setLive] = useState(false)
   const [recording, setRecording] = useState(false)
   const [flash, setFlash] = useState(false)
@@ -93,10 +96,16 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
     }
     setRecording(true)
     recorder.start()
-    window.setTimeout(() => recorder.state !== "inactive" && recorder.stop(), VIDEO_SECONDS * 1000)
+    if (cam.seconds > 0) window.setTimeout(() => recorder.state !== "inactive" && recorder.stop(), cam.seconds * 1000)
+    recorderRef.current = recorder
   }
 
   const shutter = async () => {
+    // With no set length, a second tap stops the recording.
+    if (recording && cam.seconds === 0) {
+      recorderRef.current?.stop()
+      return
+    }
     if (recording || busy) return
     const stream = streamRef.current
     const video = videoRef.current
@@ -177,7 +186,7 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
       <div className="flex h-[132px] flex-none items-center justify-between px-7 pb-safe">
         <button
           type="button"
-          onClick={() => fileRef.current?.click()}
+          onClick={() => galleryRef.current?.click()}
           aria-label={t.gallery}
           className="relative flex size-16 cursor-pointer items-center justify-center overflow-hidden rounded-[14px] border-2 border-white/30 bg-white/8"
         >
@@ -220,6 +229,16 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
         hidden
         accept={cam.video ? "video/*" : "image/*"}
         capture={cam.front ? "user" : "environment"}
+        onChange={(e) => {
+          void picked(e.target.files?.[0])
+          e.target.value = ""
+        }}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        hidden
+        accept={cam.video ? "video/*" : "image/*"}
         onChange={(e) => {
           void picked(e.target.files?.[0])
           e.target.value = ""

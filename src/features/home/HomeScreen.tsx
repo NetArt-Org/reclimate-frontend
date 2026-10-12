@@ -18,7 +18,7 @@ export interface HomeScreenProps {
   onOpenCredits: () => void
   task: TodayTask | null
   onNewBatch: () => void
-  mixReady: { title: string; sub: string; onOpen: () => void }[]
+  mixReady: { id: string; title: string; sub: string; onOpen: () => void }[]
   impact: string
   numbers: SiteNumbers
   trend: { h: number; today: boolean }[]
@@ -39,7 +39,7 @@ export function HomeScreen(p: HomeScreenProps) {
           <CreditsHeroCard t={t} credits={p.credits} onOpen={p.onOpenCredits} />
           {p.task ? <TodayTaskCard t={t} task={p.task} /> : <AllDoneCard t={t} onNewBatch={p.onNewBatch} />}
           {p.mixReady.map((m) => (
-            <MixReadyCard key={m.title} label={t.mixReady} {...m} />
+            <MixReadyCard key={m.id} label={t.mixReady} title={m.title} sub={m.sub} onOpen={m.onOpen} />
           ))}
           <div className="flex items-center gap-3 rounded-[18px] bg-teal-soft px-4 py-3.5 text-teal-ink">
             <Icon name="leaf" size={26} className="flex-none" />

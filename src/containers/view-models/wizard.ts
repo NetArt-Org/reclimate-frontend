@@ -1,40 +1,47 @@
-import { BIO, DAYS, SETUP } from "@/data/constants"
+import { DAYS, SETUP } from "@/data/constants"
 import type { CameraViewModel } from "@/features/wizard/CameraOverlay"
 import type { CelebrationViewModel } from "@/features/wizard/CelebrationOverlay"
 import type { StartOption } from "@/features/wizard/StartSheet"
 import type { WizardFieldView, WizardViewModel } from "@/features/wizard/types"
-import { bioLabel, fieldProgress, isWet, mediaOf, moistureOf } from "@/lib/batch"
+import { fieldProgress, fieldShown, isWet, limits, mediaOf, moistureOf } from "@/lib/batch"
 import { L, fill, formatClock, formatElapsed } from "@/lib/format"
-import type { Batch, ChoiceOption, FieldDef } from "@/types"
+import type { Batch, ChoiceOption, FieldDef, MediaItem } from "@/types"
 import { activeBatch, batchTitle, dayDef, type VMContext } from "./context"
 import { mixReadyList } from "./worker"
 
 /** Choice options that come from the editable site-setup lists. */
+/** Choices come from the backend: the site's setup lists and the network's mixing types. */
 function dynamicOptions(from: NonNullable<Extract<FieldDef, { type: "choice" }>["from"]>, ctx: VMContext): ChoiceOption[] {
-  const g = ctx.a.setupItems
+  const g = (key: string) => ctx.a.setupItems(key).filter((i) => !i.pending)
+  const { t } = ctx
   switch (from) {
     case "source":
       return [
-        ...g("sources").map((i) => ({ v: i.name, sub: { en: "Biomass source", id: "Sumber biomassa" }, icon: "warehouse" as const })),
-        ...g("farmers").map((i) => ({
-          v: i.name,
-          sub: { en: "Farmer" + (i.sub ? " · " + i.sub : ""), id: "Petani" + (i.sub ? " · " + i.sub : "") },
-          icon: "user-round" as const,
-        })),
+        ...g("sources").map((i) => ({ v: i.name, sub: i.sub ? `${t.biomassSource} · ${i.sub}` : t.biomassSource, icon: "warehouse" as const })),
+        ...g("farmers").map((i) => ({ v: i.name, sub: i.sub ? `${t.farmerW} · ${i.sub}` : t.farmerW, icon: "user-round" as const })),
       ]
     case "bioref":
-      return g("bioref").map((i) => ({ v: i.name, label: BIO[i.name] ?? i.name, icon: "wheat" as const }))
+      return g("bioref").map((i) => ({ v: i.name, sub: i.sub || null, icon: "wheat" as const }))
     case "kilns":
       return g("kilns").map((i) => ({ v: i.name, sub: i.sub || null, icon: "flame-kindling" as const }))
+    case "vehicles":
+      return g("vehicles").map((i) => ({ v: i.name, sub: i.sub || null, icon: "truck" as const }))
+    case "measure":
+      return g("measure").map((i) => ({ v: i.name, sub: i.sub || null, icon: "cylinder" as const }))
+    case "sample":
+      return g("sample").map((i) => ({ v: i.name, sub: i.sub || null, icon: "test-tube" as const }))
+    case "mix":
+      return ctx.s.mixingTypes.map((m) => ({ v: m, icon: "cooking-pot" as const }))
     case "bags":
       return [
         ...g("bags").map((i) => ({ v: i.name, sub: i.sub || null, icon: "shopping-bag" as const })),
-        { v: "Open", label: { en: "No bag (loose)", id: "Tanpa karung (curah)" }, icon: "mountain" as const },
+        // Packing without a bag only where the network allows open biochar.
+        ...(limits.canApplyOpen ? [{ v: "Open", label: t.openBag, icon: "mountain" as const }] : []),
       ]
     case "to":
       return [
-        ...g("farmers").map((i) => ({ v: i.name, sub: { en: "Farmer", id: "Petani" }, icon: "user-round" as const })),
-        ...g("buyers").map((i) => ({ v: i.name, sub: { en: "Buyer", id: "Pembeli" }, icon: "building-2" as const })),
+        ...g("farmers").map((i) => ({ v: i.name, sub: t.farmerW, icon: "user-round" as const })),
+        ...g("buyers").map((i) => ({ v: i.name, sub: t.buyerW, icon: "building-2" as const })),
       ]
   }
 }
@@ -71,10 +78,14 @@ function buildField(f: FieldDef, b: Batch, ctx: VMContext): WizardFieldView {
         f.hint === "avail"
           ? `${t.available}: ${nf(b.litres)} L`
           : f.hint === "bags"
-            ? `${t.available}: ${v.bags || 0} ${lg === "id" ? "karung" : "bags"}`
-            : f.hint
-              ? L(f.hint, lg)
-              : null
+            ? `${t.available}: ${v.bags || 0} ${t.bagsL.toLowerCase()}`
+            : f.hint === "min"
+              ? f.min
+                ? fill(t.minTemp, { n: f.min })
+                : null
+              : f.hint
+                ? L(f.hint, lg)
+                : null
       return {
         type: "number",
         key: f.k,
@@ -85,8 +96,8 @@ function buildField(f: FieldDef, b: Batch, ctx: VMContext): WizardFieldView {
           ? f.units.map((u) => ({ label: u, selected: u === selUnit, onPick: () => a.setVal(b.id, f.uk ?? "unit", u) }))
           : null,
         hint,
-        warn: p.over ? t.tooMuch : null,
-        state: p.over ? "invalid" : p.done ? "valid" : "idle",
+        warn: p.over ? t.tooMuch : p.low && f.min ? fill(t.tempMin, { n: f.min }) : null,
+        state: p.over || p.low ? "invalid" : p.done ? "valid" : "idle",
         onChange: (val) => a.setVal(b.id, f.k, val),
       }
     }
@@ -119,10 +130,10 @@ function buildField(f: FieldDef, b: Batch, ctx: VMContext): WizardFieldView {
         type: "moist",
         key: f.k,
         label,
-        count: `${p.have}/5`,
+        count: `${p.have}/${f.readings}`,
         done: p.done,
-        tooWetLabel: t.tooWet,
-        rows: [0, 1, 2, 3, 4].map((i) => {
+        tooWetLabel: fill(t.tooWet, { m: limits.moisture }),
+        rows: Array.from({ length: f.readings }, (_, i) => i).map((i) => {
           const x = r[i] ?? { val: "", ph: null }
           return {
             n: i + 1,
@@ -159,10 +170,11 @@ export function buildWizard(ctx: VMContext): WizardViewModel | null {
   if (s.view !== "wizard" || !w || !b) return null
   const d = DAYS[w.day - 1]
   const st = d.steps[w.step]
-  const pending = st.fields.map((f) => ({ f, p: fieldProgress(f, b) })).filter((x) => !x.p.done)
+  const fields = st.fields.filter((f) => fieldShown(f, b))
+  const pending = fields.map((f) => ({ f, p: fieldProgress(f, b) })).filter((x) => !x.p.done)
   const missing = pending.map(({ f, p }) =>
     p.wet
-      ? t.tooWetShort
+      ? fill(t.tooWetShort, { m: limits.moisture })
       : p.need
         ? `${L(f.label, lg).toLowerCase()} (${fill(t.more, { n: p.need - (p.have ?? 0) })})`
         : L(f.label, lg).toLowerCase()
@@ -182,8 +194,8 @@ export function buildWizard(ctx: VMContext): WizardViewModel | null {
     illustration: st.ill,
     title: L(st.title, lg),
     instructions: L(st.ins, lg),
-    fields: st.fields.map((f) => buildField(f, b, ctx)),
-    chips: st.fields.map((f) => {
+    fields: fields.map((f) => buildField(f, b, ctx)),
+    chips: fields.map((f) => {
       const p = fieldProgress(f, b)
       const lbl = L(f.label, lg)
       return { label: p.need ? `${lbl} ${p.have}/${p.need}` : lbl, done: p.done }
@@ -203,17 +215,22 @@ export function buildCamera(ctx: VMContext): CameraViewModel | null {
   const c = s.cam
   if (!c) return null
   const b = c.bid ? s.batches.find((x) => x.id === c.bid) : undefined
-  const have = c.slot != null || !b || !c.k ? 0 : mediaOf(b, c.k).length
+  // Captures go to a batch, or to an open Classic form.
+  const formMedia = c.rid && c.k && s.recordForm?.id === c.rid ? ((s.recordForm.data[c.k] as MediaItem[] | undefined) ?? []) : null
+  const taken = formMedia ?? (b && c.k ? mediaOf(b, c.k) : [])
+  const have = c.slot != null ? 0 : taken.length
   const video = c.kind === "video"
+  const readings = s.rules?.moisture.readings ?? 0
   return {
     title: L(c.label, lg),
-    hint: video ? t.camVidHint : t.camPhotoHint,
-    counter: c.slot != null ? `${c.slot + 1}/5` : `${Math.min(have + 1, c.need)}/${c.need}`,
+    hint: video ? (c.minSeconds ? fill(t.camVidSecs, { s: c.minSeconds }) : t.camVidHint) : t.camPhotoHint,
+    counter: c.slot != null ? `${c.slot + 1}/${readings}` : `${Math.min(have + 1, c.need)}/${c.need}`,
     tip: L(c.tip, lg),
     video,
     front: !!c.avatar,
     slow: s.slow,
-    last: b && c.k && c.slot == null ? (mediaOf(b, c.k).at(-1) ?? null) : null,
+    last: c.slot == null ? (taken.at(-1) ?? null) : null,
+    seconds: c.kind === "video" ? (c.minSeconds ?? 0) : 0,
     onCapture: a.capture,
     onClose: a.closeCamera,
   }
@@ -224,7 +241,7 @@ export function buildCelebration(ctx: VMContext): CelebrationViewModel | null {
   const c = s.cel
   if (!c) return null
   const b = s.batches.find((x) => x.id === c.bid)
-  const credits = (label: string, status: string) => ({ amount: nf(c.credits ?? 0, 1), label, status })
+  const credits = (label: string, status: string) => ({ amount: nf(c.credits ?? 0, 2), label, status })
   const base = { onNextDay: null, credits: null, onClose: a.closeCelebration }
   const next = () => a.openWizard(c.bid)
   switch (c.kind) {
@@ -233,7 +250,7 @@ export function buildCelebration(ctx: VMContext): CelebrationViewModel | null {
         ...base,
         icon: "wheat",
         title: t.d1Title,
-        sub: fill(t.d1Sub, { kg: nf(c.kg ?? 0), bio: bioLabel(c.bio ?? "", lg).toLowerCase() }),
+        sub: fill(t.d1Sub, { kg: nf(c.kg ?? 0), bio: (c.bio ?? "").toLowerCase() }),
         next: t.d1Next,
         onNextDay: next,
       }
