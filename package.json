@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "cap:sync": "next build && cap sync",
     "cap:android": "next build && cap sync android && cap open android",
     "cap:ios": "next build && cap sync ios && cap open ios"

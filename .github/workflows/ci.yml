@@ -49,8 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -63,7 +63,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
       - name: Build the app (static export → out/)
         run: npm run build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: web-out
           path: out/
@@ -75,17 +75,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: web-out
           path: out/
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -97,7 +97,7 @@ jobs:
         if: ${{ !inputs.release }}
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: ${{ !inputs.release }}
         with:
           name: artisan-pro-debug-apk
@@ -124,7 +124,7 @@ jobs:
         if: ${{ always() && inputs.release }}
         working-directory: android
         run: rm -f release.jks keystore.properties
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: ${{ inputs.release }}
         with:
           name: artisan-pro-release-aab
