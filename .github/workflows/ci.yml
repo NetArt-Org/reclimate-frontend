@@ -1,0 +1,132 @@
+# CI/CD for the Artisan Pro app.
+#
+#   every push to main / pull request:
+#     check    typecheck, lint, audit, and the release web build (pointing at the live backend)
+#     android  a debug APK to install on test phones — download it from the run's "Artifacts" (kept 14 days)
+#   on demand (Actions → App CI → Run workflow → "release" ticked):
+#     release  a signed Play Store bundle (.aab), once the signing secrets below are set
+#
+# Settings → Secrets and variables → Actions:
+#   Variables (public values, also baked into the app): API_URL (https://…hosted.app),
+#     FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET, FIREBASE_APP_ID
+#   Secrets (release signing only): ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD,
+#     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#
+# iOS is built on a Mac with Xcode (npm run cap:ios): GitHub's macOS machines use CI minutes ten times as fast.
+name: App CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Build a signed Play Store bundle (.aab)
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  # The build refuses anything but an https backend (next.config.ts), so a missing variable fails loudly.
+  NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
+  NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+  NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+
+jobs:
+  check:
+    name: Typecheck, lint, audit, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Dependency audit (fails on critical, in what ships)
+        run: npm audit --omit=dev --audit-level=critical
+      - name: Build the app (static export → out/)
+        run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-out
+          path: out/
+          retention-days: 1
+
+  android:
+    name: Android ${{ inputs.release && 'release bundle' || 'debug APK' }}
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-out
+          path: out/
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Copy the web build into the Android project
+        run: npx cap sync android
+
+      - name: Debug APK
+        if: ${{ !inputs.release }}
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.release }}
+        with:
+          name: artisan-pro-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+
+      - name: Signing key from secrets
+        if: ${{ inputs.release }}
+        working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::Add the ANDROID_KEYSTORE_* secrets first (see the top of this file)."; exit 1; fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.jks
+          printf 'storeFile=../release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+      - name: Signed Play Store bundle
+        if: ${{ inputs.release }}
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+      - name: Remove the signing key from the machine
+        if: ${{ always() && inputs.release }}
+        working-directory: android
+        run: rm -f release.jks keystore.properties
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.release }}
+        with:
+          name: artisan-pro-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
