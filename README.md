@@ -18,7 +18,9 @@ Stack: **Next.js 16 (App Router, static export)** · **Tailwind CSS v4** · **sh
 The app needs the backend (`../backend-reclimate-dmrv`, Payload CMS + Neon) running — see its README.
 
 ```bash
-cp .env.example .env.local   # NEXT_PUBLIC_API_URL (the backend) + NEXT_PUBLIC_FIREBASE_* (public web config)
+cp .env.example .env.development   # local: NEXT_PUBLIC_API_URL=http://localhost:3001 + Firebase web config
+cp .env.example .env.production    # release builds: the live backend URL + the same Firebase config
+                                   # (both git-ignored; .env.example explains every value)
 npm install
 npm run dev          # http://localhost:3000 — shows the phone frame on desktop, full-screen on phones
 npm run build        # static export → out/
