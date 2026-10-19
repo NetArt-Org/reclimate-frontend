@@ -9,9 +9,10 @@
 #     "release"          a signed Play Store bundle (.aab), once the signing secrets below are set
 #   Set the variable DISTRIBUTE_ON_PUSH=true to also send every push to main to testers.
 #
-# Settings → Secrets and variables → Actions:
-#   Variables (public values, also baked into the app): API_URL (https://…hosted.app),
-#     FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET, FIREBASE_APP_ID
+# Settings → Environments → Production (both jobs run in this environment):
+#   Variables (public values, also baked into the app): NEXT_PUBLIC_API_URL (https://…hosted.app),
+#     NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+#     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_APP_ID
 #   Firebase App Distribution:
 #     variable FIREBASE_ANDROID_APP_ID   the Android app's id (Firebase console → Project settings → Your apps, 1:…:android:…)
 #     variable TESTER_GROUPS             group alias(es) from App Distribution → Testers & Groups (default: testers)
@@ -51,13 +52,6 @@ permissions:
 
 env:
   NEXT_TELEMETRY_DISABLED: '1'
-  # The build refuses anything but an https backend (next.config.ts), so a missing variable fails loudly.
-  NEXT_PUBLIC_API_URL: ${{ vars.API_URL }}
-  NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
-  NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
   # Send this run to testers: ticked on a manual run, or every push to main when DISTRIBUTE_ON_PUSH is true.
   DISTRIBUTE: ${{ (github.event_name == 'workflow_dispatch' && inputs.distribute) || (github.event_name == 'push' && vars.DISTRIBUTE_ON_PUSH == 'true') }}
 
@@ -66,12 +60,33 @@ jobs:
     name: Typecheck, lint, audit, build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Values come from the "Production" environment (Settings → Environments → Production → variables).
+    # The build refuses anything but an https backend (next.config.ts), so a missing variable fails loudly.
+    environment: Production
+    env:
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
+      - name: Check the build settings (Production environment variables)
+        run: |
+          missing=""
+          for v in NEXT_PUBLIC_API_URL NEXT_PUBLIC_FIREBASE_API_KEY NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN NEXT_PUBLIC_FIREBASE_PROJECT_ID NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET NEXT_PUBLIC_FIREBASE_APP_ID; do
+            [ -z "${!v}" ] && missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing in Settings → Environments → Production → Environment variables (exact names, with NEXT_PUBLIC_):$missing"
+            exit 1
+          fi
+          echo "All six build settings are present. Backend: $NEXT_PUBLIC_API_URL"
       - run: npm ci
       - name: Typecheck
         run: npm run typecheck
@@ -92,6 +107,7 @@ jobs:
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: Production
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

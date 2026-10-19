@@ -1,7 +1,7 @@
 # Testing on real phones (Firebase App Distribution)
 
 Testers install the Android app from Firebase App Distribution before it is on Google Play. Each build is made by
-GitHub Actions against the **live backend** (`API_URL`), so testers use real data and real logins.
+GitHub Actions against the **live backend** (`NEXT_PUBLIC_API_URL`), so testers use real data and real logins.
 
 ## One-time setup (Firebase console + GitHub)
 
@@ -14,11 +14,11 @@ GitHub Actions against the **live backend** (`API_URL`), so testers use real dat
 4. **Service account for GitHub** (Google Cloud console → IAM & Admin → Service accounts):
    create `app-distribution-ci`, give it **only** the role *Firebase App Distribution Admin*, then Keys → Add key →
    JSON. Keep the file private; delete it from your computer after step 5.
-5. **GitHub** (reclimate-frontend → Settings → Secrets and variables → Actions):
-   - secret `FIREBASE_DISTRIBUTION_KEY` = the whole JSON key file
+5. **GitHub** (reclimate-frontend → Settings → Environments → **Production**; the workflow runs in this environment):
+   - secret `FIREBASE_DISTRIBUTION_KEY` = the whole JSON key file (an environment secret, or a repository secret)
    - variable `FIREBASE_ANDROID_APP_ID` = the App ID from step 1
    - variable `TESTER_GROUPS` = `testers` (comma-separate several groups)
-   - the variables the build already uses: `API_URL` (the backend on App Hosting) and `FIREBASE_*`
+   - the variables the build already uses: `NEXT_PUBLIC_API_URL` (the backend on App Hosting) and `NEXT_PUBLIC_FIREBASE_*`
    - optional: `DISTRIBUTE_ON_PUSH` = `true` to send every push to `main` to testers
 6. **Backend**: `CORS_ORIGINS` must include `https://localhost` (the Android app's origin) — it is in `apphosting.yaml`.
 
