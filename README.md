@@ -139,6 +139,7 @@ Classic layout). Use utility classes inline; add new colours as tokens rather th
   the backend. Set the iOS marketing version in Xcode to match.
 - Android: backups are off (`allowBackup="false"`, data extraction rules), release signing reads
   `android/keystore.properties` (git-ignored).
+- Testing on real phones before Play: Firebase App Distribution — see [docs/testing-on-phones.md](docs/testing-on-phones.md)
 - Google Play: see [docs/play-store.md](docs/play-store.md) (signing, listing, Data safety answers, account deletion).
 
 ## Not built yet

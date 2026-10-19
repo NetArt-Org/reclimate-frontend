@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "cap:sync": "next build && cap sync",
     "cap:android": "next build && cap sync android && cap open android",
-    "cap:ios": "next build && cap sync ios && cap open ios"
+    "cap:ios": "next build && cap sync ios && cap open ios",
+    "distribute:android": "bash scripts/distribute-android.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

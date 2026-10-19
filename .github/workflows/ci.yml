@@ -3,14 +3,22 @@
 #   every push to main / pull request:
 #     check    typecheck, lint, audit, and the release web build (pointing at the live backend)
 #     android  a debug APK to install on test phones — download it from the run's "Artifacts" (kept 14 days)
-#   on demand (Actions → App CI → Run workflow → "release" ticked):
-#     release  a signed Play Store bundle (.aab), once the signing secrets below are set
+#   on demand (Actions → App CI → Run workflow):
+#     "Send to testers"  builds the APK and sends it to Firebase App Distribution: testers get an email (or a
+#                        notification in the Firebase App Tester app) and install it on their phones
+#     "release"          a signed Play Store bundle (.aab), once the signing secrets below are set
+#   Set the variable DISTRIBUTE_ON_PUSH=true to also send every push to main to testers.
 #
 # Settings → Secrets and variables → Actions:
 #   Variables (public values, also baked into the app): API_URL (https://…hosted.app),
 #     FIREBASE_API_KEY, FIREBASE_AUTH_DOMAIN, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET, FIREBASE_APP_ID
-#   Secrets (release signing only): ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD,
-#     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#   Firebase App Distribution:
+#     variable FIREBASE_ANDROID_APP_ID   the Android app's id (Firebase console → Project settings → Your apps, 1:…:android:…)
+#     variable TESTER_GROUPS             group alias(es) from App Distribution → Testers & Groups (default: testers)
+#     secret   FIREBASE_DISTRIBUTION_KEY JSON key of a service account with only the "Firebase App Distribution Admin" role
+#   Secrets (release signing): ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD,
+#     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. With them, testers get a release-signed APK (same key as the Play
+#     Store build); without them, a debug APK.
 #
 # iOS is built on a Mac with Xcode (npm run cap:ios): GitHub's macOS machines use CI minutes ten times as fast.
 name: App CI
@@ -21,8 +29,16 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      distribute:
+        description: Send to testers (Firebase App Distribution)
+        type: boolean
+        default: true
+      notes:
+        description: What testers should look at (optional; the commit message is added)
+        type: string
+        default: ''
       release:
-        description: Build a signed Play Store bundle (.aab)
+        description: Also build a signed Play Store bundle (.aab)
         type: boolean
         default: false
 
@@ -42,6 +58,8 @@ env:
   NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
   NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+  # Send this run to testers: ticked on a manual run, or every push to main when DISTRIBUTE_ON_PUSH is true.
+  DISTRIBUTE: ${{ (github.event_name == 'workflow_dispatch' && inputs.distribute) || (github.event_name == 'push' && vars.DISTRIBUTE_ON_PUSH == 'true') }}
 
 jobs:
   check:
@@ -70,7 +88,7 @@ jobs:
           retention-days: 1
 
   android:
-    name: Android ${{ inputs.release && 'release bundle' || 'debug APK' }}
+    name: Android APK${{ inputs.release && ' + release bundle' || '' }}
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -93,19 +111,9 @@ jobs:
       - name: Copy the web build into the Android project
         run: npx cap sync android
 
-      - name: Debug APK
-        if: ${{ !inputs.release }}
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
-      - uses: actions/upload-artifact@v5
-        if: ${{ !inputs.release }}
-        with:
-          name: artisan-pro-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 14
-
+      # The release key, when its secrets are set: used for the Play bundle and for testers' APKs.
       - name: Signing key from secrets
-        if: ${{ inputs.release }}
+        id: signing
         working-directory: android
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -113,20 +121,73 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then echo "::error::Add the ANDROID_KEYSTORE_* secrets first (see the top of this file)."; exit 1; fi
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "${{ inputs.release }}" = "true" ]; then echo "::error::Add the ANDROID_KEYSTORE_* secrets first (see the top of this file)."; exit 1; fi
+            echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           echo "$KEYSTORE_BASE64" | base64 --decode > release.jks
           printf 'storeFile=../release.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: APK (release-signed when the key is set, otherwise debug)
+        id: apk
+        working-directory: android
+        run: |
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            ./gradlew assembleRelease --no-daemon
+            echo "path=android/$(ls app/build/outputs/apk/release/*.apk | head -1)" >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew assembleDebug --no-daemon
+            echo "path=android/$(ls app/build/outputs/apk/debug/*.apk | head -1)" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v5
+        with:
+          name: artisan-pro-apk
+          path: ${{ steps.apk.outputs.path }}
+          retention-days: 14
+
       - name: Signed Play Store bundle
         if: ${{ inputs.release }}
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon
-      - name: Remove the signing key from the machine
-        if: ${{ always() && inputs.release }}
-        working-directory: android
-        run: rm -f release.jks keystore.properties
       - uses: actions/upload-artifact@v5
         if: ${{ inputs.release }}
         with:
           name: artisan-pro-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
+      - name: Remove the signing key from the machine
+        if: ${{ always() }}
+        working-directory: android
+        run: rm -f release.jks keystore.properties
+
+      # ---- Firebase App Distribution: testers install the APK on their phones ----
+      - name: Check App Distribution settings
+        if: ${{ env.DISTRIBUTE == 'true' }}
+        env:
+          KEY: ${{ secrets.FIREBASE_DISTRIBUTION_KEY }}
+          APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+        run: |
+          if [ -z "$KEY" ] || [ -z "$APP_ID" ]; then
+            echo "::error::Set the FIREBASE_DISTRIBUTION_KEY secret and the FIREBASE_ANDROID_APP_ID variable (see the top of this file)."; exit 1
+          fi
+      - name: Sign in to Google Cloud (App Distribution service account)
+        if: ${{ env.DISTRIBUTE == 'true' }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_DISTRIBUTION_KEY }}
+      - name: Send to testers
+        if: ${{ env.DISTRIBUTE == 'true' }}
+        env:
+          APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+          GROUPS: ${{ vars.TESTER_GROUPS || 'testers' }}
+          NOTES: ${{ inputs.notes }}
+          COMMIT: ${{ github.event.head_commit.message || github.sha }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          KIND=$([ "${{ steps.signing.outputs.signed }}" = "true" ] && echo "release-signed" || echo "debug")
+          printf '%s\n\nVersion %s (%s build) · %s\n%s\n' "$NOTES" "$VERSION" "$KIND" "${GITHUB_SHA::7}" "$(echo "$COMMIT" | head -5)" > release-notes.txt
+          npx --yes firebase-tools@14 appdistribution:distribute "${{ steps.apk.outputs.path }}" \
+            --app "$APP_ID" \
+            --groups "$GROUPS" \
+            --release-notes-file release-notes.txt

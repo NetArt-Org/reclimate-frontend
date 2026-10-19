@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "823047856035",
+    "project_id": "reclimate-d0868",
+    "storage_bucket": "reclimate-d0868.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:823047856035:android:f7816d4b23dfde3b2e8416",
+        "android_client_info": {
+          "package_name": "ai.reclimate.artisanpro"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "823047856035-aep84jdkco81enic4ioo70lrgqhsr4ij.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzuXihO2bcEVudrJuTIfHb0bnBoFlDEz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "823047856035-aep84jdkco81enic4ioo70lrgqhsr4ij.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
