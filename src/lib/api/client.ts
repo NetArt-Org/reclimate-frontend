@@ -6,8 +6,7 @@ import type { AccessCode } from "./types"
  * HTTP client for the backend's field-app API (/api/field/...).
  *
  * The session is the Firebase sign-in: every request carries a short-lived Firebase ID token in
- * `X-Field-Token` (not `Authorization`: Firebase App Hosting's edge acts on a Firebase token there and answers
- * 500 before the request reaches the backend). Nothing is kept in cookies or localStorage by this module, and the backend
+ * `X-Field-Token` (older builds sent `Authorization: Bearer`, which the backend still accepts). Nothing is kept in cookies or localStorage by this module, and the backend
  * checks on every request that the person still has app access. Each request also names the site the app
  * works on (`?site=`) and reports the app version and phone model.
  */

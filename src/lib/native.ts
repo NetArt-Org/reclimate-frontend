@@ -9,7 +9,10 @@ export const isNative = () => Capacitor.isNativePlatform()
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"
 
 let model: string | null = null
-/** "Samsung SM-A125F", "iPhone14,5" or the browser, reported to the backend with the app version. */
+/**
+ * "Samsung SM-A125F", "iPhone14,5" or the browser, reported to the backend with the app version. Sent as a header,
+ * so plain ASCII only: Google's front end (App Hosting) answers 500 to a header with e.g. "·", before the backend.
+ */
 export async function deviceModel(): Promise<string> {
   if (model) return model
   try {
@@ -18,11 +21,12 @@ export async function deviceModel(): Promise<string> {
       const info = await Device.getInfo()
       model = [info.manufacturer, info.model].filter(Boolean).join(" ") || info.platform
     } else {
-      model = `Browser · ${navigator.platform || "web"}`
+      model = `Browser - ${navigator.platform || "web"}`
     }
   } catch {
     model = "Unknown device"
   }
+  model = model.replace(/[^\x20-\x7E]/g, "").trim().slice(0, 80) || "Unknown device"
   return model
 }
 
