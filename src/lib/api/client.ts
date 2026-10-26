@@ -5,8 +5,9 @@ import type { AccessCode } from "./types"
 /**
  * HTTP client for the backend's field-app API (/api/field/...).
  *
- * The session is the Firebase sign-in: every request carries a short-lived Firebase ID token as
- * `Authorization: Bearer`. Nothing is kept in cookies or localStorage by this module, and the backend
+ * The session is the Firebase sign-in: every request carries a short-lived Firebase ID token in
+ * `X-Field-Token` (not `Authorization`: Firebase App Hosting's edge acts on a Firebase token there and answers
+ * 500 before the request reaches the backend). Nothing is kept in cookies or localStorage by this module, and the backend
  * checks on every request that the person still has app access. Each request also names the site the app
  * works on (`?site=`) and reports the app version and phone model.
  */
@@ -105,7 +106,7 @@ async function attempt(path: string, init: Init, force: boolean): Promise<Respon
     headers.set("Content-Type", "application/json")
     body = JSON.stringify(init.json)
   }
-  headers.set("Authorization", `Bearer ${token}`)
+  headers.set("X-Field-Token", token)
   headers.set("X-App-Version", APP_VERSION)
   headers.set("X-Device-Model", await deviceModel())
   headers.set("X-App-Mode", offline ? "offline" : "online")
