@@ -98,6 +98,10 @@ export interface AppState extends AppData {
   reg: { name: string; phone: string; village: string; role: string; networkId: string; siteId: string; password2: string }
   regOptions: RegisterOptions | null
   regNote: string
+  /** The existing account found for the phone number typed while signing up, for that number. */
+  regMatch: { phone: string; name: string; site: string } | null
+  /** The answer to "Is this you?" (null: not asked or not answered). */
+  regClaim: boolean | null
   /* step-by-step app */
   tab: Tab
   view: View | null
@@ -156,6 +160,8 @@ export function initialState(opts: StoreOptions, ui: UiVariant = "new"): AppStat
     reg: { name: "", phone: "", village: "", role: "", networkId: "", siteId: "", password2: "" },
     regOptions: null,
     regNote: "",
+    regMatch: null,
+    regClaim: null,
     tab: "home",
     view: null,
     sheet: null,

@@ -168,6 +168,19 @@ export async function request<T>(path: string, init?: Init): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T)
 }
 
+/** A POST made before anyone is signed in ("Forgot password"): no token, one try. */
+export async function requestSignedOut(path: string, json: unknown): Promise<void> {
+  const res = await fetch(urlFor(path), {
+    method: "POST",
+    body: JSON.stringify(json),
+    headers: { "Content-Type": "application/json", "X-App-Version": APP_VERSION },
+    credentials: "omit",
+  }).catch(() => {
+    throw new NetworkError()
+  })
+  if (!res.ok) throw new ApiError(res.status, res.statusText)
+}
+
 /** A GET that may come back unchanged: `null` when the server's copy matches `etag`. */
 export async function requestFresh<T>(path: string, etag: string | null): Promise<{ data: T; etag: string | null } | null> {
   const res = await send(path, { etag: etag ?? undefined })

@@ -1,7 +1,7 @@
 import type { MediaItem, Profile, SetupItem } from "@/types"
-import { request, requestBlob, requestFresh } from "./client"
+import { request, requestBlob, requestFresh, requestSignedOut } from "./client"
 import type {
-  Bootstrap, HistoryEntry, Page, RecordKind, RecordMap, RegisterOptions, RegisterStatusReply, ServerBatch, SiteStats, Supervisor,
+  Bootstrap, HistoryEntry, Page, RecordKind, RecordMap, RegisterMatchReply, RegisterOptions, RegisterStatusReply, ServerBatch, SiteStats, Supervisor,
 } from "./types"
 
 /**
@@ -83,7 +83,13 @@ export const createSellRequest = () => request("/sell-requests", { method: "POST
 
 /* ---------- Register now ---------- */
 
+/** Before "Forgot password": the backend creates the login of someone already in the system who has none yet. */
+export const prepareReset = (email: string) => requestSignedOut("/password-reset", { email })
+
 export const registerOptions = () => request<RegisterOptions>("/register/options")
 export const registerStatus = () => request<RegisterStatusReply>("/register/status")
-export const register = (data: { name: string; phone: string; village: string; role: string; siteId: string }) =>
+/** "Account found — is this you?": an existing person with this phone number (masked name and site only). */
+export const registerMatch = (phone: string) => request<RegisterMatchReply>("/register/match", { method: "POST", json: { phone } })
+/** `claim`: "yes, that account is me" — the admin links this sign-up to it when approving. */
+export const register = (data: { name: string; phone: string; village: string; role: string; siteId: string; claim?: boolean }) =>
   request<{ ok: true; status: string }>("/register", { method: "POST", json: data })

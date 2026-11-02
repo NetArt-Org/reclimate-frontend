@@ -29,6 +29,12 @@ export interface RegisterProps {
   loadingOptions: boolean
   /** Why a sign-up was not approved (from the admin). */
   note: string
+  /** Someone already in the system with the phone number typed (masked name, their site). */
+  match: { name: string; site: string } | null
+  /** The answer to "Is this you?" (null: not answered yet). */
+  claim: boolean | null
+  onPhoneDone: () => void
+  onAnswerMatch: (yes: boolean) => void
   onChange: (key: RegKey, value: string) => void
   onCreateAccount: () => void
   onGoogle: () => void
@@ -86,6 +92,7 @@ function TextField(props: {
   autoComplete: string
   placeholder?: string
   trailing?: ReactNode
+  onBlur?: () => void
 }) {
   return (
     <label className="flex h-[60px] items-center gap-2.5 rounded-2xl border-2 border-line-strong bg-surface px-4 focus-within:border-green">
@@ -99,6 +106,7 @@ function TextField(props: {
         placeholder={props.placeholder}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
+        onBlur={props.onBlur}
         className="text-[18px] font-bold"
         aria-label={props.label}
       />
@@ -320,7 +328,7 @@ export function LoginScreen(p: LoginScreenProps) {
                 {t.registerNow}
               </button>
             </div>
-            <p className="text-center text-sm text-ink-muted">{t.demoPin}</p>
+            <p className="mt-1 text-center text-xs leading-relaxed text-ink-muted">{t.loginHelp}</p>
           </>
         )}
 
@@ -376,6 +384,7 @@ export function LoginScreen(p: LoginScreenProps) {
             <button type="button" onClick={() => p.onStepChange("login")} className="mt-1 text-center text-[15px] font-extrabold text-green">
               {t.haveAccount}
             </button>
+            <p className="mt-1 text-center text-xs leading-relaxed text-ink-muted">{t.regHelp}</p>
           </>
         )}
 
@@ -400,18 +409,45 @@ export function LoginScreen(p: LoginScreenProps) {
             <FieldLabel className="mt-1.5 text-[15px]">{t.fullName}</FieldLabel>
             <TextField icon="user-round" label={t.fullName} type="text" value={r.name} onChange={(v) => r.onChange("name", v)} autoComplete="name" />
             <FieldLabel className="mt-1.5 text-[15px]">{t.phoneLbl}</FieldLabel>
-            <TextField icon="phone" label={t.phoneLbl} type="tel" value={r.phone} onChange={(v) => r.onChange("phone", v)} autoComplete="tel" placeholder="+62 …" />
+            <TextField icon="phone" label={t.phoneLbl} type="tel" value={r.phone} onChange={(v) => r.onChange("phone", v)} onBlur={r.onPhoneDone} autoComplete="tel" placeholder="+62 …" />
+            {r.match && (
+              <div className="flex flex-col gap-2.5 rounded-2xl border-2 border-green bg-surface p-4">
+                <div className="flex items-center gap-2 text-[15px] font-extrabold text-green">
+                  <Icon name="circle-user-round" size={20} />
+                  {t.matchTitle}
+                </div>
+                <div className="text-[17px] font-bold">
+                  {r.match.name}
+                  {r.match.site && <span className="font-semibold text-ink-muted"> · {r.match.site}</span>}
+                </div>
+                <div className="text-[15px] font-bold">{t.matchQ}</div>
+                <div className="flex gap-2">
+                  <Button type="button" variant={r.claim === true ? "default" : "neutral"} className="h-12 flex-1" onClick={() => r.onAnswerMatch(true)} disabled={p.busy}>
+                    {t.matchYes}
+                  </Button>
+                  <Button type="button" variant={r.claim === false ? "default" : "neutral"} className="h-12 flex-1" onClick={() => r.onAnswerMatch(false)} disabled={p.busy}>
+                    {t.matchNo}
+                  </Button>
+                </div>
+                {r.claim === true && <p className="text-sm text-ink-muted">{t.matchClaimed}</p>}
+              </div>
+            )}
             <FieldLabel className="mt-1.5 text-[15px]">{t.village}</FieldLabel>
             <TextField icon="house" label={t.village} type="text" value={r.village} onChange={(v) => r.onChange("village", v)} autoComplete="address-level2" placeholder={t.villagePh} />
+            {!(r.match && r.claim === true) && (
+              <>
             <FieldLabel className="mt-1.5 text-[15px]">{t.roleQ}</FieldLabel>
             <SelectField icon="id-card" label={t.roleQ} value={r.role} options={r.roles} placeholder={r.loadingOptions ? t.loadingMore : t.roleQ} onChange={(v) => r.onChange("role", v)} />
             <FieldLabel className="mt-1.5 text-[15px]">{t.networkLbl}</FieldLabel>
             <SelectField icon="building-2" label={t.networkLbl} value={r.networkId} options={r.networks} placeholder={r.loadingOptions ? t.loadingMore : t.selectNetwork} onChange={(v) => r.onChange("networkId", v)} />
             <FieldLabel className="mt-1.5 text-[15px]">{t.siteLbl}</FieldLabel>
             <SelectField icon="map-pin" label={t.siteLbl} value={r.siteId} options={r.sites} placeholder={t.selectSite} onChange={(v) => r.onChange("siteId", v)} disabled={!r.networkId} />
+              </>
+            )}
             {p.error && <Notice tone="danger">{p.error}</Notice>}
             <Primary busy={p.busy} label={t.sendForApproval} icon="send" />
             {logout}
+            <p className="mt-1 text-center text-xs leading-relaxed text-ink-muted">{t.regHelp}</p>
           </>
         )}
 

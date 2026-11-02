@@ -135,6 +135,21 @@ export function accountActions(k: StoreKit) {
     }
   }
 
+  /** Ask the backend once per number; a failed lookup just skips the question (the admin still sees the match). */
+  let matchAsked = ""
+  const findMatch = async () => {
+    const phone = get().reg.phone.trim()
+    if (phone.replace(/\D/g, "").length < 8 || phone === matchAsked) return
+    matchAsked = phone
+    try {
+      const r = await api.registerMatch(phone)
+      if (get().reg.phone.trim() !== phone) return
+      set({ regMatch: r.found ? { phone, name: r.name, site: r.site } : null, regClaim: null })
+    } catch {
+      matchAsked = ""
+    }
+  }
+
   const validPassword = (p: string) => p.length >= 8 && /[a-z]/i.test(p) && /\d/.test(p)
   const firebaseError = (e: unknown) => {
     const code = (e as { code?: string })?.code
@@ -184,6 +199,8 @@ export function accountActions(k: StoreKit) {
       if (!fb.isFirebaseConfigured()) return set({ loginError: tt.loginNotSetUp })
       set({ loginBusy: true, loginError: null, loginInfo: null })
       try {
+        // Staff migrated without a login get one first (Firebase only emails existing logins); never blocks the reset.
+        await api.prepareReset(s.loginEmail.trim()).catch(() => {})
         await fb.sendReset(s.loginEmail)
         set({ loginBusy: false, loginInfo: tt.resetSent })
       } catch (e) {
@@ -222,7 +239,16 @@ export function accountActions(k: StoreKit) {
 
     /* ---------- Register now ---------- */
     setReg: (key: keyof AppState["reg"], value: string) =>
-      set((s) => ({ reg: { ...s.reg, [key]: value, ...(key === "networkId" ? { siteId: "" } : {}) }, loginError: null })),
+      set((s) => ({
+        reg: { ...s.reg, [key]: value, ...(key === "networkId" ? { siteId: "" } : {}) },
+        loginError: null,
+        // Another number: the "account found" answer was about the old one.
+        ...(key === "phone" ? { regMatch: null, regClaim: null } : {}),
+      })),
+    /** After typing the phone number: is this person already in the system? ("Account found — is this you?") */
+    checkPhoneMatch: () => void findMatch(),
+    /** "Yes, this is me" / "No": with yes, role and site come from the existing account. */
+    answerMatch: (yes: boolean) => set({ regClaim: yes, loginError: null }),
     /** Step 1: create the account (email + password). */
     registerAccount: async () => {
       const s = get()
@@ -276,11 +302,23 @@ export function accountActions(k: StoreKit) {
       const r = s.reg
       if (!r.name.trim()) return set({ loginError: tt.nameRequired })
       if (r.phone.replace(/\D/g, "").length < 8) return set({ loginError: tt.phoneRequired })
-      if (!r.role) return set({ loginError: tt.roleNeeded })
-      if (!r.siteId) return set({ loginError: tt.siteNeeded })
+      await findMatch()
+      const s2 = get()
+      // An account with this number exists: ask "Is this you?" before sending.
+      if (s2.regMatch && s2.regClaim === null) return set({ loginError: tt.matchAnswer })
+      const claim = !!s2.regMatch && s2.regClaim === true
+      if (!claim && !r.role) return set({ loginError: tt.roleNeeded })
+      if (!claim && !r.siteId) return set({ loginError: tt.siteNeeded })
       set({ loginBusy: true, loginError: null })
       try {
-        await api.register({ name: r.name.trim(), phone: r.phone.trim(), village: r.village.trim(), role: r.role, siteId: r.siteId })
+        await api.register({
+          name: r.name.trim(),
+          phone: r.phone.trim(),
+          village: r.village.trim(),
+          role: claim ? "" : r.role,
+          siteId: claim ? "" : r.siteId,
+          ...(claim ? { claim: true } : {}),
+        })
         set({ authStep: "pending", loginBusy: false })
       } catch (e) {
         set({ loginBusy: false, loginError: firebaseError(e) })

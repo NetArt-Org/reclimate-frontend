@@ -202,6 +202,9 @@ export interface RegisterOptions {
 
 export type RegistrationStatus = "none" | "pending" | "approved" | "rejected"
 
+/** Someone already in the system with the phone number typed while signing up (masked name, their site). */
+export type RegisterMatchReply = { found: false } | { found: true; name: string; site: string }
+
 export interface RegisterStatusReply {
   status: RegistrationStatus
   email: string
