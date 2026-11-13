@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react"
 import { FieldLabel, Icon, Segmented, type IconName } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { Dict } from "@/data/i18n"
+import { LANGUAGES, type Dict } from "@/data/i18n"
 import type { Lang } from "@/types"
 
 type Step = "login" | "forgot" | "setPassword" | "register" | "verifyEmail" | "registerDetails" | "pending" | "rejected"
@@ -272,11 +272,8 @@ export function LoginScreen(p: LoginScreenProps) {
             variant="dark"
             value={p.lang}
             onChange={p.onLangChange}
-            itemClassName="h-[38px] min-w-[50px] text-sm"
-            options={[
-              { value: "en", label: "EN" },
-              { value: "id", label: "ID" },
-            ]}
+            itemClassName="h-[38px] min-w-[42px] px-1.5 text-sm"
+            options={LANGUAGES.map((l) => ({ value: l.value, label: l.value.toUpperCase() }))}
           />
         </div>
         <div className="mt-2 text-[32px] font-extrabold tracking-[-.8px]">Artisan Pro</div>

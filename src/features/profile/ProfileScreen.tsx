@@ -4,7 +4,7 @@ import { Icon, Screen, Segmented, SettingsRow, UserAvatar } from "@/components/c
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
-import type { Dict } from "@/data/i18n"
+import { LANGUAGES, type Dict } from "@/data/i18n"
 import { cn } from "@/lib/utils"
 import type { Lang, MediaItem } from "@/types"
 
@@ -75,11 +75,8 @@ export function ProfileScreen(p: ProfileScreenProps) {
         <Segmented
           value={p.lang}
           onChange={p.onLangChange}
-          itemClassName="h-10"
-          options={[
-            { value: "en", label: "EN" },
-            { value: "id", label: "ID" },
-          ]}
+          itemClassName="h-10 min-w-9 px-2"
+          options={LANGUAGES.map((l) => ({ value: l.value, label: l.value.toUpperCase() }))}
         />
       </Card>
 

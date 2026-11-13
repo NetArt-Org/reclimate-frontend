@@ -74,7 +74,8 @@ export interface Flow {
 export interface SiteStats {
   biochar: { totalL: number; approvedL: number; rejectedL: number; pendingL: number; mixedL: number; shipped: Flow; applied: Flow }
   batches: { inProgress: number; waiting: number; approved: number; rejected: number; total: number }
-  biomass: { totalKg: number; collections: number; byFeedstock: { feedstock: string; kg: number; count: number }[] }
+  /** Per feedstock: collected, used in burns and left in stock (kg; the last two from backend 2.8). */
+  biomass: { totalKg: number; collections: number; byFeedstock: { feedstock: string; kg: number; count: number; usedKg?: number; remainingKg?: number }[] }
   mixing: { byType: { type: string; biocharL: number; kg: number; count: number }[]; count: number }
   packing: { type: string; bag: string; bags: number; remaining: number; kg: number }[]
   available: { biocharL: number }

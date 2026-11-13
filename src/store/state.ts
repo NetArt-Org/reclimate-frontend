@@ -51,6 +51,8 @@ export interface CameraState {
   label: Localized
   tip: Localized
   avatar?: boolean
+  /** Into the open "Add new" form (a kiln's or container's measuring photo, a bag photo). */
+  add?: boolean
   /** Shortest video accepted (seconds), from the network's rules. */
   minSeconds?: number
 }
@@ -67,8 +69,12 @@ export interface CelebrationState {
 }
 
 export interface AddFormState {
+  /** Becomes the new item's temporary id (photos taken in the form are tied to it). */
+  id: string
   key: string
   vals: Record<string, string>
+  /** Photos taken in the form. */
+  media: MediaItem[]
   /** When opened from the wizard: where to write the new item back. */
   ret: { bid: string; k: string } | null
 }

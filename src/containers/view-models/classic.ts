@@ -1,4 +1,5 @@
 import { DAYS, SETUP } from "@/data/constants"
+import { LANGUAGES } from "@/data/i18n"
 import type { ClassicFormProps, ClassicSheetsProps, FormField, InputField, SelectField, SourcePickProps } from "@/features/classic/forms"
 import type {
   ClassicBiomassProps, ClassicDistributionProps, ClassicDrawerProps, ClassicHomeProps, ClassicMixingProps, ClassicProductionProps,
@@ -10,7 +11,7 @@ import { fieldProgress, isWet, mediaOf, moistureOf } from "@/lib/batch"
 import { L, fill, formatDay, formatTime, m3 } from "@/lib/format"
 import { APP_VERSION } from "@/lib/native"
 import type { ClassicTab } from "@/store/useArtisanStore"
-import type { Batch, MediaItem, MoistureReading, PendingRecord } from "@/types"
+import type { Batch, Lang, MediaFieldDef, MediaItem, MoistureReading, PendingRecord } from "@/types"
 import { bioName, profileInfo, statusView, type VMContext } from "./context"
 import { burnMedia } from "./other"
 import { more } from "./worker"
@@ -22,6 +23,10 @@ import { more } from "./worker"
 
 const media = (v: unknown) => (Array.isArray(v) ? (v as MediaItem[]) : [])
 const str = (v: unknown) => (v == null ? "" : String(v))
+const num = (v: unknown) => {
+  const n = parseFloat(String(v ?? ""))
+  return Number.isFinite(n) ? n : 0
+}
 
 /** Pending (unsent) records of a kind, newest first, with their waiting/refused mark. */
 function pendingOf(ctx: VMContext, kind: RecordKind): (PendingRecord & { mark: PendingMark })[] {
@@ -133,7 +138,7 @@ export function buildClassicBiomass(ctx: VMContext): ClassicBiomassProps {
 }
 
 /** Day 2's captures shown as "Add …" rows on an ongoing production card (kiln/moisture/timer/litres are elsewhere). */
-const PRODUCTION_SKIP = new Set(["kiln", "moist", "burn", "litres", "measure", "sample"])
+const PRODUCTION_SKIP = new Set(["kiln", "moist", "burn", "litres", "measure", "sample", "tempPh"])
 
 export function buildClassicProduction(ctx: VMContext): ClassicProductionProps {
   const { s, a, t, lg, nf } = ctx
@@ -145,6 +150,7 @@ export function buildClassicProduction(ctx: VMContext): ClassicProductionProps {
   const list = s.batches.filter((b) => (sub === "ongoing" ? ongoing(b) : !ongoing(b)) && (!kiln || b.kiln === kiln))
   const fields = DAYS[1].steps.flatMap((st) => st.fields).filter((f) => !PRODUCTION_SKIP.has(f.k))
   const tempFields = fields.filter((f) => f.type === "number")
+  const hasTempPhoto = DAYS[1].steps.some((st) => st.fields.some((f) => f.k === "tempPh"))
 
   const card = (b: Batch): ProductionCard => {
     const steps = [
@@ -165,9 +171,10 @@ export function buildClassicProduction(ctx: VMContext): ClassicProductionProps {
               key: "temp",
               icon: "thermometer" as const,
               label: `${t.addW} ${t.temperatureT} (${tempFields.filter((f) => fieldProgress(f, b).done).length}/${tempFields.length})`,
-              done: tempFields.every((f) => fieldProgress(f, b).done),
+              // The readings and, when the network asks for temperature, the thermometer photo (taken in the sheet).
+              done: tempFields.every((f) => fieldProgress(f, b).done) && (!hasTempPhoto || mediaOf(b, "tempPh").length > 0),
               onPress: () => a.openBatchSheet("temp", b.id),
-              last: null,
+              last: mediaOf(b, "tempPh").at(-1) ?? null,
             },
           ]
         : []),
@@ -372,7 +379,7 @@ export function buildClassicSettings(ctx: VMContext): ClassicSettingsProps {
     site: s.site,
     initials: p.initials,
     photo: p.photo,
-    language: s.lang === "id" ? "Bahasa Indonesia" : "English",
+    language: LANGUAGES.find((l) => l.value === s.lang)?.label ?? "English",
     ui: s.ui,
     onUi: (ui) => a.setAccountType(ui === "classic" ? "existing" : "new"),
     onPhoto: () => a.openSheet("photo"),
@@ -440,6 +447,7 @@ export function buildClassicForm(ctx: VMContext): ClassicFormProps | null {
       }
     case "start": {
       const rows = (d.moist as unknown as MoistureReading[]) ?? []
+      const stock = s.stats?.biomass.byFeedstock.find((x) => x.feedstock === d.btype)
       const n = r?.moisture.required ? r.moisture.readings : 0
       const kilns = a.setupItems("kilns").map((k) => ({ value: k.name, label: k.pending ? `${k.name} (${t.pendingApproval})` : k.name, disabled: !!k.pending }))
       return {
@@ -448,6 +456,11 @@ export function buildClassicForm(ctx: VMContext): ClassicFormProps | null {
         submitLabel: t.startProcess,
         fields: [
           select("btype", t.selectBiomass, feedstocks),
+          // How much biomass goes into this burn, and what is left in stock of it at the site.
+          text("qty", t.biomassQty, "number", { suffix: "kg" }),
+          ...(d.btype && stock?.remainingKg != null
+            ? [{ type: "note" as const, key: "stock", text: num(d.qty) > stock.remainingKg ? fill(t.overStock, { n: ctx.nf(stock.remainingKg) }) : fill(t.stockLeft, { n: ctx.nf(Math.max(0, stock.remainingKg - num(d.qty))) }) }]
+            : []),
           select("kiln", t.selectKiln, kilns),
           ...(n
             ? [
@@ -535,9 +548,16 @@ export function buildClassicSheets(ctx: VMContext): ClassicSheetsProps {
   const set = (k: string) => (val: string) => a.setSheetValue(k, val)
   const tempFields = DAYS[1].steps.flatMap((st) => st.fields).filter((f) => f.type === "number" && /^temp\d*$/.test(f.k))
   const entryOpen = (s.sheet === "temp" || s.sheet === "endBurn" || s.sheet === "qty") && !!b
+  // The thermometer photo, when the network asks for temperature (lib/rules).
+  const tempPhoto = DAYS[1].steps.flatMap((st) => st.fields).find((f): f is MediaFieldDef => f.type === "media" && f.k === "tempPh")
   const fields: FormField[] =
     s.sheet === "temp"
-      ? tempFields.map((f) => ({ type: "number", key: f.k, label: L(f.label, lg), value: v[f.k] ?? "", onChange: set(f.k), suffix: "°C" }))
+      ? [
+          ...tempFields.map((f): FormField => ({ type: "number", key: f.k, label: L(f.label, lg), value: v[f.k] ?? "", onChange: set(f.k), suffix: "°C" })),
+          ...(tempPhoto && b
+            ? [{ type: "media" as const, key: tempPhoto.k, label: L(tempPhoto.label, lg), kind: "photo" as const, required: true, items: mediaOf(b, tempPhoto.k), onAdd: () => a.openCamera(b.id, tempPhoto), onRemove: () => {} }]
+            : []),
+        ]
       : s.sheet === "endBurn"
         ? [
             { type: "number", key: "litres", label: t.biocharQty, value: v.litres ?? "", onChange: set("litres"), suffix: "L" },
@@ -569,11 +589,8 @@ export function buildClassicSheets(ctx: VMContext): ClassicSheetsProps {
     language: {
       open: s.sheet === "language",
       value: s.lang,
-      options: [
-        { value: "en", label: "English" },
-        { value: "id", label: "Bahasa Indonesia" },
-      ],
-      onPick: (l) => a.setLang(l as "en" | "id"),
+      options: LANGUAGES,
+      onPick: (l) => a.setLang(l as Lang),
       onClose: a.closeSheet,
     },
   }

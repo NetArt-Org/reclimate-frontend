@@ -1,12 +1,14 @@
 "use client"
 
 import {
-  BackButton, FieldLabel, FieldNote, FieldShell, Icon, IconTile, ListRow, PageTitle, Screen, ScreenWithFooter,
+  BackButton, FieldLabel, FieldNote, FieldShell, Icon, IconTile, ListRow, MediaView, PageTitle, Screen, ScreenWithFooter,
   type IconName, LoadMore, type MoreProps } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { CardList } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Dict } from "@/data/i18n"
+import { cn } from "@/lib/utils"
+import type { MediaItem } from "@/types"
 
 /* ---------------- Category grid ---------------- */
 
@@ -104,14 +106,98 @@ export function SetupListScreen(p: SetupListScreenProps) {
 
 /* ---------------- Add form ---------------- */
 
+/** One field of an "Add new" form (built by the view-model from data/constants SETUP_FORMS). */
+export type AddField =
+  | { kind: "input"; key: string; label: string; icon: IconName; type: "text" | "number" | "tel"; unit: string; value: string; onChange: (v: string) => void }
+  | { kind: "select"; key: string; label: string; icon: IconName; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }
+  | { kind: "photo"; key: string; label: string; icon: IconName; items: MediaItem[]; onAdd: () => void; onRemove: (id: string) => void }
+  | { kind: "location"; key: string; label: string; icon: IconName; value: string | null; action: string; onCapture: () => void }
+  | { kind: "note"; key: string; icon: IconName; text: string; ok: boolean }
+
 export interface SetupAddScreenProps {
   t: Dict
   icon: IconName
   title: string
-  fields: { key: string; label: string; icon: IconName; type: string; unit: string; value: string; onChange: (v: string) => void }[]
+  fields: AddField[]
   fromWizard: boolean
   onSave: () => void
   onBack: () => void
+}
+
+function AddFieldView({ f, t }: { f: AddField; t: Dict }) {
+  switch (f.kind) {
+    case "input":
+      return (
+        <div className="flex flex-col gap-2">
+          <FieldLabel>{f.label}</FieldLabel>
+          <FieldShell icon={f.icon} unit={f.unit || undefined}>
+            <Input aria-label={f.label} type={f.type} inputMode={f.type === "number" ? "decimal" : undefined} value={f.value} onChange={(e) => f.onChange(e.target.value)} />
+          </FieldShell>
+        </div>
+      )
+    case "select":
+      return (
+        <div className="flex flex-col gap-2">
+          <FieldLabel>{f.label}</FieldLabel>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={f.label}>
+            {f.options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={f.value === o.value}
+                onClick={() => f.onChange(o.value)}
+                className={cn(
+                  "min-h-12 cursor-pointer rounded-2xl border-2 px-4 text-left text-[15px] font-bold active:scale-[.98]",
+                  f.value === o.value ? "border-brand bg-brand-soft text-brand" : "border-line bg-surface text-ink"
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )
+    case "photo":
+      return (
+        <div className="flex flex-col gap-2">
+          <FieldLabel>{f.label}</FieldLabel>
+          <div className="flex flex-wrap gap-2.5">
+            {f.items.map((m) => (
+              <div key={m.id} className="relative size-24 overflow-hidden rounded-2xl bg-stripe-photo">
+                <MediaView item={m} thumb className="size-full object-cover" />
+                <button type="button" onClick={() => f.onRemove(m.id)} aria-label="Remove" className="absolute top-1.5 right-1.5 flex size-8 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white">
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+            ))}
+            {f.items.length === 0 && (
+              <button type="button" onClick={f.onAdd} className="flex size-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-brand bg-brand-soft text-sm font-bold text-brand">
+                <Icon name="camera" size={26} />
+                {t.takePhotoBtn}
+              </button>
+            )}
+          </div>
+        </div>
+      )
+    case "location":
+      return (
+        <div className="flex flex-col gap-2">
+          <FieldLabel>{f.label}</FieldLabel>
+          <Button variant={f.value ? "soft" : "dashed"} size="md" className="h-[54px] justify-start gap-2.5 text-base" onClick={f.onCapture}>
+            <Icon name={f.value ? "map-pin-check" : "locate-fixed"} size={20} />
+            {f.value ?? f.action}
+          </Button>
+        </div>
+      )
+    case "note":
+      return (
+        <div className={cn("flex items-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-bold", f.ok ? "bg-success-soft text-success-ink" : "bg-muted text-ink-muted")}>
+          <Icon name={f.icon} size={18} />
+          {f.text}
+        </div>
+      )
+  }
 }
 
 export function SetupAddScreen(p: SetupAddScreenProps) {
@@ -132,17 +218,7 @@ export function SetupAddScreen(p: SetupAddScreenProps) {
         <PageTitle size="md">{p.title}</PageTitle>
       </div>
       {p.fields.map((f) => (
-        <div key={f.key} className="flex flex-col gap-2">
-          <FieldLabel>{f.label}</FieldLabel>
-          <FieldShell icon={f.icon} unit={f.unit || undefined}>
-            <Input
-              type={f.type}
-              inputMode={f.type === "number" ? "decimal" : undefined}
-              value={f.value}
-              onChange={(e) => f.onChange(e.target.value)}
-            />
-          </FieldShell>
-        </div>
+        <AddFieldView key={f.key} f={f} t={t} />
       ))}
       {p.fromWizard && (
         <FieldNote icon="corner-down-left">

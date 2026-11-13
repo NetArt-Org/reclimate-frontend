@@ -1,6 +1,7 @@
 import { DAYS } from "@/data/constants"
 import type { DayDef, FieldDef, FieldRules, Localized, MediaFieldDef, MoistureFieldDef, NumberFieldDef, StepDef } from "@/types"
 import { limits } from "./batch"
+import { L } from "./format"
 
 /**
  * The admin sets the field rules per network (backend → Settings → Field app settings): photo and video counts,
@@ -14,9 +15,10 @@ const TEMPLATE: DayDef[] = structuredClone(DAYS)
 /** The admin's quench photo names → the wizard's fields. */
 const QUENCH: Record<string, string> = { "Pre-quench": "preq", Quenching: "quench", "Post-quench": "postq", Drying: "dry" }
 
+/** Fill `{n}`-style values in every language (Malay/Khmer/Tagalog looked up by the template first, then filled). */
 const fill = (l: Localized, values: Record<string, string | number>): Localized => {
   const f = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => String(values[k] ?? ""))
-  return typeof l === "string" ? f(l) : { en: f(l.en), id: f(l.id) }
+  return typeof l === "string" ? f(l) : { en: f(l.en), id: f(l.id), ms: f(L(l, "ms")), km: f(L(l, "km")), tl: f(L(l, "tl")) }
 }
 
 function build(rules: FieldRules): DayDef[] {
@@ -43,6 +45,8 @@ function build(rules: FieldRules): DayDef[] {
           }
           if (f.type === "media" && f.k in Object.fromEntries(Object.values(QUENCH).map((k) => [k, 1]))) return quench.has(f.k) ? [f] : []
           if (f.type === "moist") return rules.moisture.required ? [{ ...f, readings: Math.max(1, rules.moisture.readings) } as MoistureFieldDef] : []
+          // The thermometer photo goes with the temperature reading.
+          if (f.k === "tempPh") return rules.temperature.required ? [f] : []
           if (f.k === "temp" && f.type === "number") {
             if (!rules.temperature.required) return []
             const n = Math.max(1, rules.temperature.readings)

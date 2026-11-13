@@ -1,8 +1,9 @@
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication"
 import { Capacitor } from "@capacitor/core"
 import { getApp, getApps, initializeApp } from "firebase/app"
 import {
   GoogleAuthProvider, browserLocalPersistence, createUserWithEmailAndPassword, getAuth, indexedDBLocalPersistence, initializeAuth,
-  onIdTokenChanged, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, signOut,
+  onIdTokenChanged, sendEmailVerification, sendPasswordResetEmail, signInWithCredential, signInWithEmailAndPassword, signInWithPopup, signOut,
   updatePassword, updateProfile, type Auth, type User,
 } from "firebase/auth"
 
@@ -22,8 +23,12 @@ const config = {
 
 export const isFirebaseConfigured = () => !!(config.apiKey && config.authDomain && config.projectId)
 
-/** Google sign-in uses a browser popup; inside the Android/iOS app it needs a native plugin (not set up yet). */
-export const canUseGoogle = () => !Capacitor.isNativePlatform()
+/**
+ * Google sign-in: a browser popup on the web; in the Android app, Android's own Google account picker (Capacitor
+ * Firebase Authentication plugin), whose Google token then signs in the same Firebase session as on the web.
+ * iOS has no Google setup yet, so the button is left out there.
+ */
+export const canUseGoogle = () => Capacitor.getPlatform() !== "ios"
 
 let instance: Auth | null = null
 export function auth(): Auth {
@@ -46,7 +51,14 @@ export async function currentUser(): Promise<User | null> {
 
 export const signInWithPassword = (email: string, password: string) => signInWithEmailAndPassword(auth(), email.trim(), password)
 
-export function signInWithGoogle() {
+export async function signInWithGoogle() {
+  if (Capacitor.isNativePlatform()) {
+    // The plugin only gets the Google token (skipNativeAuth); the web SDK holds the session, as for passwords.
+    const res = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true })
+    const token = res.credential?.idToken
+    if (!token) throw Object.assign(new Error("Google sign-in returned no token"), { code: "auth/popup-closed-by-user" })
+    return signInWithCredential(auth(), GoogleAuthProvider.credential(token, res.credential?.accessToken))
+  }
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({ prompt: "select_account" })
   return signInWithPopup(auth(), provider)
@@ -98,7 +110,11 @@ export async function signInProvider(): Promise<string | null> {
   return u ? ((await u.getIdTokenResult()).signInProvider ?? null) : null
 }
 
-export const firebaseSignOut = () => signOut(auth())
+export async function firebaseSignOut() {
+  // In the app, also forget the Google account chosen, so the next Google sign-in asks which account to use.
+  if (Capacitor.isNativePlatform()) await FirebaseAuthentication.signOut().catch(() => {})
+  return signOut(auth())
+}
 
 /** A fresh ID token for the backend (Firebase refreshes it when it is close to expiry). */
 export async function idToken(force = false): Promise<string | null> {
@@ -116,6 +132,8 @@ export function authErrorKey(e: unknown): "loginFailed" | "loginOffline" | "logi
   if (code === "auth/network-request-failed") return "loginOffline"
   if (code === "auth/too-many-requests") return "loginTooMany"
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "loginCancelled"
+  // Android's account picker closed without choosing an account.
+  if (/cancel/i.test(String((e as { message?: string })?.message ?? ""))) return "loginCancelled"
   if (code === "auth/weak-password" || code === "auth/password-does-not-meet-requirements") return "passwordWeak"
   return "loginGeneric"
 }

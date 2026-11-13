@@ -1,5 +1,8 @@
+import type { Lang } from "@/types"
+import { km, ms, tl } from "./i18n-extra"
+
 /**
- * UI copy for English and Bahasa Indonesia (copied verbatim from the design).
+ * UI copy for English and Bahasa Indonesia (copied verbatim from the design); Malay, Khmer and Tagalog in i18n-extra.
  * `{token}` placeholders are filled with `fill()` from lib/format.
  */
 const en = { home: 'Home', process: 'Process', start: 'Start', credits: 'Credits', profile: 'Profile', hello: 'Good afternoon,', online: 'Online', offline: 'Offline',
@@ -63,7 +66,11 @@ const en = { home: 'Home', process: 'Process', start: 'Start', credits: 'Credits
     addApplication: 'Add Application', addDistribution: 'Add Distribution', emptyDistribution: 'Click on (+) to start distribution to farmers or others.', recipientL: 'Recipient', selectRecipient: 'Select recipient', productL: 'Product', quantityL: 'Quantity', bagsL: 'Bags', saveLocationW: 'Save location', availableStock: 'Available stock', recentApplications: 'Recent applications', addressL: 'Address', phoneOpt: 'Phone (optional)',
     slowMode: 'Slow Internet Mode', changeNetwork: 'Change Network', supervisorList: 'Supervisor List', siteSetting: 'Site Setting', pendingUploads: 'Pending Uploads', settingsW: 'Settings', versionW: 'Version {v}', languageL: 'Language', editW: 'Edit', nameL: 'Name', phoneL: 'Phone', onW: 'ON', offW: 'OFF', creditsShort: 't CO₂e', uiSwitch: 'App layout', uiClassic: 'Classic', uiNew: 'New', requestKiln: 'Request a new kiln', requestDensity: 'Request a bulk density change', biomassSource: 'Biomass source', farmerW: 'Farmer', buyerW: 'Buyer', burnStartedAct: 'Burn started', status: 'Status', factorText: '100 L of {f} biochar ≈ {c} t CO₂ = {c} credits', factorNone: 'Credits are worked out by your admin from lab values.', verifyTitle: 'Check your email', verifySub: 'We sent a link to your email address. Open it to confirm the address is yours, then come back and tap “I have verified”.', verifySent: 'Verification email sent. Check your inbox and spam folder.', iVerified: 'I have verified', resendLink: 'Send the link again', notVerifiedYet: 'Not verified yet. Open the link in the email first.', deleteAccount: 'Delete account', deleteTitle: 'Delete your account?', deleteSub: 'Your sign-in and personal details (name, email, phone, address, photo) are erased. Work you recorded stays, without your name, because it is carbon-credit evidence. This cannot be undone.', deleteConfirm: 'Yes, delete my account', deleteFailed: 'Could not delete the account. Please try again.', accountDeleted: 'Your account has been deleted', privacyPolicy: 'Privacy policy', loadFailed: 'Could not load more. Please try again.', termsOfUse: 'Terms of use',
     locFailed: 'Could not get your location. Turn on location and try again.', camOpen: 'Tap the button to open the camera', noMedia: 'Nothing captured yet', meterPhotos: 'Moisture meter photos',
-    updateTitle: 'Update needed', updateSub: 'This version of Artisan Pro is no longer supported. Update the app to keep recording your work. Nothing saved on this phone is lost.', updateBtn: 'Update the app' } as const
+    updateTitle: 'Update needed', updateSub: 'This version of Artisan Pro is no longer supported. Update the app to keep recording your work. Nothing saved on this phone is lost.', updateBtn: 'Update the app',
+    camLiveOnly: 'Take a new photo with the camera. Photos from the gallery are not accepted.',
+    volumeIs: 'Volume: {v} L', volumeNeedDims: 'Enter every measurement to see the volume.', pickShape: 'Choose the shape', dimsNeeded: 'Enter every measurement',
+    photoNeeded: 'Take the photo', takePhotoBtn: 'Take photo', locSave: 'Save my location', locSavedAt: 'Saved: {c}', locNeeded: 'Save the location', locGetting: 'Getting your location…',
+    stockLeft: 'In stock: {n} kg', overStock: 'Only {n} kg of this biomass is in stock.', needsTempPhoto: 'Take the thermometer photo' } as const
 
 export type Dict = { [K in keyof typeof en]: string }
 
@@ -128,6 +135,20 @@ const id: Dict = { home: 'Beranda', process: 'Proses', start: 'Mulai', credits: 
     addApplication: 'Tambah Aplikasi', addDistribution: 'Tambah Distribusi', emptyDistribution: 'Ketuk (+) untuk mulai distribusi ke petani atau lainnya.', recipientL: 'Penerima', selectRecipient: 'Pilih penerima', productL: 'Produk', quantityL: 'Jumlah', bagsL: 'Karung', saveLocationW: 'Simpan lokasi', availableStock: 'Stok tersedia', recentApplications: 'Aplikasi terbaru', addressL: 'Alamat', phoneOpt: 'Telepon (opsional)',
     slowMode: 'Mode Internet Lambat', changeNetwork: 'Ganti Jaringan', supervisorList: 'Daftar Supervisor', siteSetting: 'Pengaturan Lokasi', pendingUploads: 'Unggahan Tertunda', settingsW: 'Pengaturan', versionW: 'Versi {v}', languageL: 'Bahasa', editW: 'Ubah', nameL: 'Nama', phoneL: 'Telepon', onW: 'ON', offW: 'OFF', creditsShort: 't CO₂e', uiSwitch: 'Tampilan aplikasi', uiClassic: 'Klasik', uiNew: 'Baru', requestKiln: 'Minta tungku baru', requestDensity: 'Minta ubah kepadatan curah', biomassSource: 'Sumber biomassa', farmerW: 'Petani', buyerW: 'Pembeli', burnStartedAct: 'Pembakaran dimulai', status: 'Status', factorText: '100 L biochar {f} ≈ {c} t CO₂ = {c} kredit', factorNone: 'Kredit dihitung admin dari nilai lab.', verifyTitle: 'Periksa email Anda', verifySub: 'Kami mengirim tautan ke email Anda. Buka untuk memastikan alamat itu milik Anda, lalu kembali dan ketuk “Sudah saya verifikasi”.', verifySent: 'Email verifikasi terkirim. Periksa kotak masuk dan folder spam.', iVerified: 'Sudah saya verifikasi', resendLink: 'Kirim tautan lagi', notVerifiedYet: 'Belum terverifikasi. Buka tautan di email terlebih dahulu.', deleteAccount: 'Hapus akun', deleteTitle: 'Hapus akun Anda?', deleteSub: 'Data masuk dan data pribadi Anda (nama, email, telepon, alamat, foto) dihapus. Pekerjaan yang Anda catat tetap ada tanpa nama Anda, karena menjadi bukti kredit karbon. Tidak dapat dibatalkan.', deleteConfirm: 'Ya, hapus akun saya', deleteFailed: 'Akun tidak bisa dihapus. Silakan coba lagi.', accountDeleted: 'Akun Anda sudah dihapus', privacyPolicy: 'Kebijakan privasi', loadFailed: 'Tidak bisa memuat lagi. Silakan coba lagi.', termsOfUse: 'Ketentuan penggunaan',
     locFailed: 'Lokasi tidak didapat. Nyalakan lokasi lalu coba lagi.', camOpen: 'Ketuk tombol untuk membuka kamera', noMedia: 'Belum ada yang diambil', meterPhotos: 'Foto alat ukur kelembapan',
-    updateTitle: 'Perlu pembaruan', updateSub: 'Versi Artisan Pro ini tidak didukung lagi. Perbarui aplikasi agar bisa terus mencatat pekerjaan Anda. Data di ponsel ini tidak hilang.', updateBtn: 'Perbarui aplikasi' }
+    updateTitle: 'Perlu pembaruan', updateSub: 'Versi Artisan Pro ini tidak didukung lagi. Perbarui aplikasi agar bisa terus mencatat pekerjaan Anda. Data di ponsel ini tidak hilang.', updateBtn: 'Perbarui aplikasi',
+    camLiveOnly: 'Ambil foto baru dengan kamera. Foto dari galeri tidak diterima.',
+    volumeIs: 'Volume: {v} L', volumeNeedDims: 'Isi semua ukuran untuk melihat volumenya.', pickShape: 'Pilih bentuknya', dimsNeeded: 'Isi semua ukuran',
+    photoNeeded: 'Ambil fotonya', takePhotoBtn: 'Ambil foto', locSave: 'Simpan lokasi saya', locSavedAt: 'Tersimpan: {c}', locNeeded: 'Simpan lokasinya', locGetting: 'Mengambil lokasi Anda…',
+    stockLeft: 'Stok: {n} kg', overStock: 'Stok biomassa ini hanya {n} kg.', needsTempPhoto: 'Ambil foto termometer' }
 
-export const translations = { en, id } satisfies Record<string, Dict>
+/** Malay, Khmer and Tagalog: their own text where translated (data/i18n-extra), English otherwise. */
+export const translations: Record<Lang, Dict> = { en, id, ms: { ...en, ...ms }, km: { ...en, ...km }, tl: { ...en, ...tl } }
+
+/** The languages the app offers, in their own words. */
+export const LANGUAGES: { value: Lang; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "id", label: "Bahasa Indonesia" },
+  { value: "ms", label: "Bahasa Melayu" },
+  { value: "km", label: "ភាសាខ្មែរ" },
+  { value: "tl", label: "Tagalog" },
+]

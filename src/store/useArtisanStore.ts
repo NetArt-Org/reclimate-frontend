@@ -156,7 +156,7 @@ function createStore(opts: StoreOptions) {
     if (s.cel) return batches.closeCelebration(), true
     if (s.sheet) return set({ sheet: null }), true
     if (s.drawer) return set({ drawer: false }), true
-    if (s.view === "setupAdd") return set({ view: s.addForm?.ret ? (s.addForm.ret.bid === "form" ? "recordForm" : "wizard") : "setupList", addForm: null }), true
+    if (s.view === "setupAdd") return account.cancelAdd(), true
     if (s.view === "recordForm" || s.view === "sourcePick") return records.cancelRecordForm(), true
     if (s.view === "setupList") return set({ view: "setup" }), true
     if (s.view === "editProfile" && s.ui === "classic") return set({ view: "settings", draft: null }), true

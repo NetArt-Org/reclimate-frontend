@@ -197,9 +197,13 @@ export function batchActions(k: StoreKit, onAvatar: (blob: Blob) => void) {
 
     /* ---------- Classic production cards ---------- */
     /** "Start Process": feedstock, kiln and moisture readings are on the form; the burn starts now. */
-    startProcess: (data: { btype: string; kiln: string; moist: MoistureReading[] }, formId?: string) => {
+    startProcess: (data: { btype: string; kiln: string; qty?: number; moist: MoistureReading[] }, formId?: string) => {
       const fire = DAYS[1].steps.findIndex((st) => st.fields.some((f) => f.k === "firePh" || f.k === "fireVid"))
-      const b = createBatch({ day: 2, step: Math.max(0, fire), kiln: data.kiln, bio: data.btype, v: { btype: data.btype, kiln: data.kiln, moist: data.moist, burn: Date.now() } })
+      const kg = data.qty && data.qty > 0 ? Math.round(data.qty) : 0
+      const b = createBatch({
+        day: 2, step: Math.max(0, fire), kiln: data.kiln, bio: data.btype, kg,
+        v: { btype: data.btype, kiln: data.kiln, moist: data.moist, burn: Date.now(), ...(kg ? { qty: String(kg), unit: "kg" } : {}) },
+      })
       // Meter photos taken in the Classic form are still uploading for the form: hand them over to the batch, so
       // each lands in the batch's moisture rows (and is saved with it) when its upload finishes.
       if (b && formId) set((s) => ({ uploads: s.uploads.map((u) => (u.rid === formId ? { ...u, rid: undefined, bid: b.id } : u)) }))
@@ -225,6 +229,8 @@ export function batchActions(k: StoreKit, onAvatar: (blob: Blob) => void) {
         const fields = DAYS[1].steps.flatMap((st) => st.fields).filter((f) => f.type === "number" && /^temp\d*$/.test(f.k))
         const bad = fields.find((f) => f.type === "number" && (num(vals[f.k]) <= 0 || (f.min != null && num(vals[f.k]) < f.min)))
         if (bad && bad.type === "number") return toast(bad.min ? fill(tt.tempMin, { n: bad.min }) : tt.notYet, "info")
+        // The thermometer photo, when the network asks for one (lib/rules).
+        if (DAYS[1].steps.some((st) => st.fields.some((f) => f.k === "tempPh")) && !mediaOf(b, "tempPh").length) return toast(tt.needsTempPhoto, "camera")
         updateBatch(b.id, (bb) => {
           fields.forEach((f) => (bb.v[f.k] = vals[f.k]))
           return bb
@@ -263,6 +269,14 @@ export function batchActions(k: StoreKit, onAvatar: (blob: Blob) => void) {
       if (!c) return
       const tt = t()
       if (c.avatar) return onAvatar(blob)
+      // Into the open "Add new" form (sent with the new item once uploaded).
+      if (c.add) {
+        const form = get().addForm
+        if (!form) return set({ cam: null })
+        const item = k.keepFile(blob, { kind: "photo", sid: form.id, name: { en: L(c.label, "en"), id: L(c.label, "id") } })
+        set({ addForm: { ...form, media: [...form.media, item] }, cam: null })
+        return
+      }
       if (!(await longEnough(blob))) return
       const offline = !s.online
       // Into a Classic form (the record is sent with its files once they are uploaded).

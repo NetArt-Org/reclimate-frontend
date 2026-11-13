@@ -124,6 +124,15 @@ export function createSync<S extends SyncState>({ get, set, onSessionLost, onRec
       }))
       return
     }
+    if (u.sid) {
+      // A new setup item's photo: the item waits in the outbox until all its photos are uploaded.
+      const sid = u.sid
+      const swapIn = (list: MediaItem[] | undefined) => list?.map(swap(u.id, item))
+      patch((s) => ({ outbox: s.outbox.map((o) => (o.kind === "setupAdd" && o.tempId === sid ? { ...o, media: swapIn(o.media) } : o)) }))
+      set(((s: S & { addForm?: { id: string; media: MediaItem[] } | null }) =>
+        s.addForm?.id === sid ? { addForm: { ...s.addForm, media: swapIn(s.addForm.media) } } : {}) as Patch<S>)
+      return
+    }
     if (u.rid) {
       const rid = u.rid
       patch((s) => ({ pendingRecords: s.pendingRecords.map((r) => (r.id === rid ? { ...r, data: replaceRecordMedia(r.data, u.id, item) } : r)) }))
@@ -187,7 +196,8 @@ export function createSync<S extends SyncState>({ get, set, onSessionLost, onRec
   async function send(op: OutboxOp) {
     switch (op.kind) {
       case "setupAdd": {
-        const item = await api.createSetupItem(op.category, { name: op.name, sub: op.detail, clientId: op.tempId })
+        const photoIds = (op.media ?? []).map((m) => m.remoteId).filter((x): x is string => !!x)
+        const item = await api.createSetupItem(op.category, { name: op.name, sub: op.detail, clientId: op.tempId, details: op.details, photoIds })
         patch((s) => ({
           setup: s.setup.map((c) =>
             c.key === op.category ? { ...c, items: c.items.map((i) => (i.id === op.tempId ? { ...item } : i)) } : c
@@ -209,6 +219,8 @@ export function createSync<S extends SyncState>({ get, set, onSessionLost, onRec
   async function sendOutbox(result: FlushResult) {
     for (const op of [...get().outbox]) {
       if (!get().me) return
+      // A new item whose photos are still uploading waits for them (a photo that can never upload is dropped).
+      if (op.kind === "setupAdd" && op.media?.some((m) => m.pend && get().uploads.some((u) => u.id === m.id))) continue
       try {
         await send(op)
         result.sent++

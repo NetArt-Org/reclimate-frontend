@@ -6,7 +6,7 @@ import {
   Loader, LoaderCircle, LocateFixed, Lock, LogOut, Mail, MapPin, MapPinCheck, MessageSquareWarning, Mountain,
   PartyPopper, Pencil, Phone, Play, Plus, Repeat, RotateCcw, Ruler, Send, Settings2, ShieldCheck, ShoppingBag, Shovel,
   Signal, Sprout, TestTube, ThumbsUp, Trash2, Trees, TriangleAlert, Truck, UserRound, Users, Video, Warehouse, Weight,
-  Wheat, Wifi, WifiOff, X, Menu, Headset, QrCode, Thermometer, Search, Package, Network, CirclePlus, ChevronUp, CircleUserRound,
+  Wheat, Wifi, WifiOff, X, Menu, Headset, QrCode, Thermometer, Search, Package, Network, CirclePlus, ChevronUp, CircleUserRound, Shapes, Scale,
   type LucideIcon, type LucideProps,
 } from "lucide-react"
 
@@ -33,6 +33,7 @@ const ICONS = {
   "user-round": UserRound, users: Users, video: Video, warehouse: Warehouse, weight: Weight, wheat: Wheat, wifi: Wifi,
   "wifi-off": WifiOff, x: X, menu: Menu, headset: Headset, "qr-code": QrCode, thermometer: Thermometer, search: Search,
   package: Package, network: Network, "circle-plus": CirclePlus, "chevron-up": ChevronUp, "circle-user-round": CircleUserRound,
+  shapes: Shapes, scale: Scale,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

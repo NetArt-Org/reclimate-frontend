@@ -5,7 +5,7 @@ import type { EditProfileScreenProps } from "@/features/profile/EditProfileScree
 import type { SetupAddScreenProps, SetupListScreenProps, SetupScreenProps, SupervisorsScreenProps } from "@/features/setup/SetupScreens"
 import type { UploadsScreenProps } from "@/features/uploads/UploadsScreen"
 import { cn } from "@/lib/utils"
-import { ClassicButton, ClassicInput, ClassicMore, FormScreen } from "./ui"
+import { ClassicButton, ClassicInput, ClassicMore, ClassicSelect, FormScreen, MediaAdd } from "./ui"
 
 /**
  * The Classic app's secondary screens: site setup lists, adding an item, supervisors, pending uploads and the
@@ -69,9 +69,34 @@ export function ClassicSetupAdd(p: SetupAddScreenProps) {
   const { t } = p
   return (
     <FormScreen title={p.title} onBack={p.onBack} backLabel={t.back} footer={<ClassicButton onPress={p.onSave}>{t.save}</ClassicButton>}>
-      {p.fields.map((f) => (
-        <ClassicInput key={f.key} label={f.label} value={f.value} onChange={f.onChange} type={f.type === "number" ? "number" : f.type === "tel" ? "tel" : "text"} suffix={f.unit || undefined} />
-      ))}
+      {p.fields.map((f) => {
+        switch (f.kind) {
+          case "input":
+            return <ClassicInput key={f.key} label={f.label} value={f.value} onChange={f.onChange} type={f.type} suffix={f.unit || undefined} />
+          case "select":
+            return <ClassicSelect key={f.key} label={f.label} value={f.value} options={f.options} onChange={f.onChange} />
+          case "photo":
+            return <MediaAdd key={f.key} label={f.label} required kind="photo" items={f.items} onAdd={f.items.length ? () => {} : f.onAdd} onRemove={f.onRemove} />
+          case "location":
+            return (
+              <div key={f.key} className="flex flex-col gap-2">
+                <div className="text-[18px] font-medium">
+                  {f.label}
+                  <span className="text-cl-bad"> *</span>
+                </div>
+                <ClassicButton variant="outline" onPress={f.onCapture}>
+                  {f.value ?? f.action}
+                </ClassicButton>
+              </div>
+            )
+          case "note":
+            return (
+              <div key={f.key} className={cn("rounded-lg px-4 py-3 text-[17px] font-semibold", f.ok ? "bg-cl-soft text-cl" : "bg-[#f2f2f2] text-cl-muted")}>
+                {f.text}
+              </div>
+            )
+        }
+      })}
     </FormScreen>
   )
 }

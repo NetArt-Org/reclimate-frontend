@@ -59,7 +59,10 @@ export async function uploadMedia(file: Blob, capturedAt: string, clientId: stri
 /* ---------- site setup ---------- */
 
 /** `clientId` (the item's id on the phone) makes it safe to send again after a lost reply. */
-export const createSetupItem = async (category: string, data: { name: string; sub: string; clientId: string }) =>
+export const createSetupItem = async (
+  category: string,
+  data: { name: string; sub: string; clientId: string; details?: Record<string, unknown>; photoIds?: string[] }
+) =>
   (await request<{ item: SetupItem }>(`/setup/${encodeURIComponent(category)}`, { method: "POST", json: data, idempotent: true })).item
 
 export const deleteSetupItem = (category: string, id: string) =>

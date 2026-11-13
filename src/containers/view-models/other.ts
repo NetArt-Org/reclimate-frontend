@@ -1,8 +1,8 @@
-import { DAYS, SETUP, SETUP_FORMS } from "@/data/constants"
+import { DAYS, DIMENSION_LABEL, SETUP, SETUP_FORMS, SHAPE_LABEL } from "@/data/constants"
 import type { LoginScreenProps } from "@/features/auth/LoginScreen"
 import type { EditProfileScreenProps } from "@/features/profile/EditProfileScreen"
 import type { ProfileScreenProps } from "@/features/profile/ProfileScreen"
-import type { SetupAddScreenProps, SetupListScreenProps, SetupScreenProps, SupervisorsScreenProps } from "@/features/setup/SetupScreens"
+import type { AddField, SetupAddScreenProps, SetupListScreenProps, SetupScreenProps, SupervisorsScreenProps } from "@/features/setup/SetupScreens"
 import type { SiteSheetProps } from "@/features/shared/SiteSheet"
 import type { RejectSheetProps } from "@/features/supervisor/RejectSheet"
 import type { ReviewBatchScreenProps } from "@/features/supervisor/ReviewBatchScreen"
@@ -13,6 +13,7 @@ import { isWet, mediaOf, moistureOf } from "@/lib/batch"
 import { L, fill, formatElapsed, nameParts } from "@/lib/format"
 import { canUseGoogle } from "@/lib/firebase"
 import { APP_VERSION } from "@/lib/native"
+import { SHAPES, volumeLitresMm } from "@/lib/shape-volume"
 import type { Batch, MediaFieldDef, MediaItem, Profile } from "@/types"
 import { batchTitle, batchYieldTitle, buildHeader, profileInfo, statusView, type VMContext } from "./context"
 import { more } from "./worker"
@@ -227,19 +228,45 @@ export function buildSetupAdd({ s, a, t, lg }: VMContext): SetupAddScreenProps |
   const f = s.addForm
   if (s.view !== "setupAdd" || !f) return null
   const cat = SETUP.find((c) => c.key === f.key)!
+  const val = (k: string) => f.vals[k] ?? ""
+  const set = (k: string) => (v: string) => a.setAddValue(k, v)
+  const fields = SETUP_FORMS[f.key].flatMap((fd, i): AddField[] => {
+    const label = L(fd.label, lg) + (i > 0 && !fd.req ? ` (${t.optional})` : "")
+    switch (fd.type) {
+      case "select": {
+        // A bag measured by volume has its capacity in litres.
+        return [{ kind: "select", key: fd.k, label, icon: fd.icon, value: val(fd.k), options: (fd.opts ?? []).map((o) => ({ value: o.v, label: L(o.label, lg) })), onChange: set(fd.k) }]
+      }
+      case "shape": {
+        // Shape, then each of its measurements (cm), then the volume they give.
+        const kind = fd.shapeKind ?? "kiln"
+        const shape = val("shape")
+        const dims = SHAPES[kind][shape] ?? []
+        const mm = Object.fromEntries(dims.map((d) => [d, Number(val(`dim:${d}`).replace(",", ".")) * 10]))
+        const litres = shape ? volumeLitresMm(kind, shape, mm) : null
+        return [
+          { kind: "select", key: "shape", label, icon: fd.icon, value: shape, options: Object.keys(SHAPES[kind]).map((v) => ({ value: v, label: L(SHAPE_LABEL[v], lg) })), onChange: set("shape") },
+          ...dims.map((d): AddField => ({ kind: "input", key: `dim:${d}`, label: L(DIMENSION_LABEL[d], lg), icon: "ruler", type: "number", unit: "cm", value: val(`dim:${d}`), onChange: set(`dim:${d}`) })),
+          ...(shape ? [{ kind: "note" as const, key: "volume", icon: "cylinder" as const, ok: !!litres, text: litres ? fill(t.volumeIs, { v: Math.round(litres).toLocaleString() }) : t.volumeNeedDims }] : []),
+        ]
+      }
+      case "photo":
+        return [{ kind: "photo", key: fd.k, label, icon: fd.icon, items: f.media, onAdd: a.addPhoto, onRemove: a.removeAddPhoto }]
+      case "location": {
+        const lat = Number(val("lat")), lng = Number(val("lng"))
+        return [{ kind: "location", key: fd.k, label, icon: fd.icon, value: val("lat") ? fill(t.locSavedAt, { c: `${lat.toFixed(5)}, ${lng.toFixed(5)}` }) : null, action: t.locSave, onCapture: a.addLocation }]
+      }
+      default: {
+        const unit = f.key === "bags" && fd.k === "cap" && val("measure") === "volume" ? "L" : fd.unit
+        return [{ kind: "input", key: fd.k, label, icon: fd.icon, type: fd.type as "text" | "number" | "tel", unit, value: val(fd.k), onChange: set(fd.k) }]
+      }
+    }
+  })
   return {
     t,
     icon: cat.icon,
     title: f.key === "kilns" ? t.requestKiln : f.key === "bioref" ? t.requestDensity : fill(t.addNewOf, { x: L(cat.name, lg).toLowerCase() }),
-    fields: SETUP_FORMS[f.key].map((fd, i) => ({
-      key: fd.k,
-      label: L(fd.label, lg) + (i > 0 && !fd.req ? ` (${t.optional})` : ""),
-      icon: fd.icon,
-      type: fd.type,
-      unit: fd.unit,
-      value: f.vals[fd.k] ?? "",
-      onChange: (v: string) => a.setAddValue(fd.k, v),
-    })),
+    fields,
     fromWizard: !!f.ret,
     onSave: a.saveAdd,
     onBack: a.back,

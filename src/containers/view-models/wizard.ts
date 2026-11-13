@@ -1,4 +1,4 @@
-import { DAYS, SETUP } from "@/data/constants"
+import { DAYS, SETUP, STATUS_META } from "@/data/constants"
 import type { CameraViewModel } from "@/features/wizard/CameraOverlay"
 import type { CelebrationViewModel } from "@/features/wizard/CelebrationOverlay"
 import type { StartOption } from "@/features/wizard/StartSheet"
@@ -265,7 +265,7 @@ export function buildCelebration(ctx: VMContext): CelebrationViewModel | null {
         title: t.batchTitle,
         sub: t.batchSub,
         next: t.batchNext,
-        credits: credits(t.celEarned, b?.status === "done" ? (lg === "id" ? "Selesai" : "Complete") : t.waitApproval),
+        credits: credits(t.celEarned, b?.status === "done" ? L(STATUS_META.done.label, lg) : t.waitApproval),
       }
     case "res":
       return { ...base, icon: "send", title: t.resTitle, sub: t.resSub, next: t.resNext, credits: credits(t.celCreditsLbl, t.waitApproval) }

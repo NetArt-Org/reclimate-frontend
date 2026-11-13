@@ -5,7 +5,8 @@ import { L, fill } from "@/lib/format"
 import * as fb from "@/lib/firebase"
 import { fileToJpeg } from "@/lib/image"
 import { mediaStore } from "@/lib/media-store"
-import { callPhone } from "@/lib/native"
+import { callPhone, currentPosition } from "@/lib/native"
+import { SHAPES, volumeLitresMm } from "@/lib/shape-volume"
 import type { Profile, UiVariant } from "@/types"
 import type { AddFormState, AppState, AuthStep, StoreKit } from "./state"
 
@@ -398,42 +399,111 @@ export function accountActions(k: StoreKit) {
 
     /* ---------- site setup ---------- */
     openSetupList: (setupIdx: number) => set({ view: "setupList", setupIdx, drawer: false }),
-    openAdd: (key: string, ret: AddFormState["ret"] = null) =>
-      set({ addForm: { key, vals: {}, ret }, view: "setupAdd" }),
+    openAdd: (key: string, ret: AddFormState["ret"] = null) => {
+      // Defaults for the choices (the most common answer), so a quick add needs only the name and measurements.
+      const vals: Record<string, string> = key === "kilns" ? { kilnType: "kontiki" } : key === "bags" ? { measure: "weight" } : {}
+      set({ addForm: { id: "t-" + rid(), key, vals, media: [], ret }, view: "setupAdd" })
+    },
     setAddValue: (key: string, val: string) =>
       set((s) => (s.addForm ? { addForm: { ...s.addForm, vals: { ...s.addForm.vals, [key]: val } } } : {})),
+    /** Take the form's measuring/bag photo (in the app's camera; no gallery). */
+    addPhoto: () => {
+      const a = get().addForm
+      const f = a && SETUP_FORMS[a.key].find((x) => x.type === "photo")
+      if (!a || !f) return
+      set({ cam: { add: true, kind: "photo", need: 1, label: f.label, tip: f.tip ?? f.label } })
+    },
+    removeAddPhoto: (id: string) => {
+      mediaStore.remove(id)
+      set((s) => ({ uploads: s.uploads.filter((u) => u.id !== id), addForm: s.addForm ? { ...s.addForm, media: s.addForm.media.filter((m) => m.id !== id) } : null }))
+    },
+    /** Save where the biomass source is (the phone's GPS). */
+    addLocation: () => {
+      toast(t().locGetting, "locate-fixed")
+      void currentPosition()
+        .then(({ lat, lng }) => set((s) => (s.addForm ? { addForm: { ...s.addForm, vals: { ...s.addForm.vals, lat: String(lat), lng: String(lng) } } } : {})))
+        .catch(() => toast(t().locFailed, "info"))
+    },
     saveAdd: () => {
       const s = get()
       const a = s.addForm
       if (!a) return
       const tt = t()
       const fields = SETUP_FORMS[a.key]
-      const vals = fields.map((f) => String(a.vals[f.k] ?? "").trim())
-      const miss = fields.find((f, i) => (i === 0 || f.req) && !vals[i])
-      if (miss) return toast(fill(tt.fieldNeeded, { f: L(miss.label, s.lang).toLowerCase() }), "info")
+      const val = (k: string) => String(a.vals[k] ?? "").trim()
+      for (const [i, f] of fields.entries()) {
+        if (i > 0 && !f.req) continue
+        const need = (msg: string) => toast(msg, "info")
+        if (f.type === "shape") {
+          const shape = val("shape")
+          if (!shape) return need(tt.pickShape)
+          const keys = SHAPES[f.shapeKind ?? "kiln"][shape] ?? []
+          if (keys.some((d) => !(Number(val(`dim:${d}`).replace(",", ".")) > 0))) return need(tt.dimsNeeded)
+        } else if (f.type === "photo") {
+          if (!a.media.length) return need(tt.photoNeeded)
+        } else if (f.type === "location") {
+          if (!val("lat")) return need(tt.locNeeded)
+        } else if (!val(f.k)) return need(fill(tt.fieldNeeded, { f: L(f.label, s.lang).toLowerCase() }))
+      }
       if (!s.online && (a.key === "kilns" || a.key === "bioref")) return toast(tt.needsOnline, "wifi-off")
-      const f2 = fields[1]
-      // The backend reads numbers from `sub` (kiln litres, container litres, bulk density).
-      const sub = f2 ? vals[1] : ""
-      const name = vals[0]
+      const name = val("name")
+      const shapeField = fields.find((f) => f.type === "shape")
+      const details: Record<string, unknown> = {}
+      let sub = ""
+      let shown = ""
+      if (shapeField) {
+        // Centimetres on screen, millimetres to the backend (which works the volume out again and stores its own).
+        const kind = shapeField.shapeKind ?? "kiln"
+        const shape = val("shape")
+        const dimensions = Object.fromEntries((SHAPES[kind][shape] ?? []).map((d) => [d, Math.round(Number(val(`dim:${d}`).replace(",", ".")) * 10)]))
+        const litres = volumeLitresMm(kind, shape, dimensions)
+        Object.assign(details, { shape, dimensions })
+        sub = litres ? String(Math.round(litres)) : ""
+        shown = litres ? `${Math.round(litres)} L` : ""
+      }
+      if (a.key === "kilns") {
+        details.kilnType = val("kilnType") || "kontiki"
+        shown = [details.kilnType === "pit" ? "Pit" : "Kon-Tiki", shown].filter(Boolean).join(" · ")
+      } else if (a.key === "sources") {
+        Object.assign(details, { lat: Number(val("lat")), lng: Number(val("lng")) })
+        sub = shown = val("addr")
+      } else if (a.key === "bags") {
+        const unit = val("measure") === "volume" ? "L" : "kg"
+        Object.assign(details, { bagType: val("bagType"), measure: val("measure") || "weight", capacity: Number(val("cap").replace(",", ".")) })
+        sub = val("cap")
+        shown = [`${val("cap")} ${unit}`, val("bagType")].filter(Boolean).join(" · ")
+      } else if (!shapeField) {
+        // The other lists: the second field is the detail (phone, plate, bulk density…).
+        const f2 = fields[1]
+        sub = f2 ? val(f2.k) : ""
+        shown = f2?.unit && sub ? `${sub} ${f2.unit}` : sub
+      }
       const ret = a.ret
       const request = a.key === "kilns" || a.key === "bioref"
-      // Temporary id until the backend has saved the item and returns its own.
-      const tempId = "t-" + rid()
-      const shown = f2?.unit && sub ? `${sub} ${f2.unit}` : sub
+      // The form's id is the item's temporary id until the backend has saved it and returns its own.
+      const tempId = a.id
       set((st) => ({
         setup: st.setup.map((c) => (c.key === a.key ? { ...c, items: [...c.items, { id: tempId, name, sub: shown, pending: request }] } : c)),
         addForm: null,
         // Back to where "add" was opened: a Classic form (bid "form"), the wizard, or the list.
         view: ret ? (ret.bid === "form" ? "recordForm" : "wizard") : "setupList",
       }))
-      queue({ id: rid(), kind: "setupAdd", tempId, category: a.key, name, detail: sub })
+      queue({ id: rid(), kind: "setupAdd", tempId, category: a.key, name, detail: sub, details, media: a.media })
       // A requested kiln cannot be used until the admin approves it.
       if (ret && !request) {
         if (ret.bid === "form") set((st) => (st.recordForm ? { recordForm: { ...st.recordForm, data: { ...st.recordForm.data, [ret.k]: name } } } : {}))
         else k.setVal(ret.bid, ret.k, name)
       }
       toast(request ? tt.requestSent : fill(tt.addedItem, { n: name }), request ? "send" : "circle-check")
+    },
+    /** Leave the "Add new" form without saving: its photos are dropped. */
+    cancelAdd: () => {
+      const a = get().addForm
+      if (a) {
+        a.media.forEach((m) => mediaStore.remove(m.id))
+        set((s) => ({ uploads: s.uploads.filter((u) => u.sid !== a.id) }))
+      }
+      set((s) => ({ view: s.addForm?.ret ? (s.addForm.ret.bid === "form" ? "recordForm" : "wizard") : "setupList", addForm: null }))
     },
     removeSetupItem: (key: string, id: string) => {
       const item = get().setup.find((c) => c.key === key)?.items.find((i) => i.id === id)

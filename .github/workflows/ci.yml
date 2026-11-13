@@ -6,7 +6,8 @@
 #   on demand (Actions → App CI → Run workflow):
 #     "Send to testers"  builds the APK and sends it to Firebase App Distribution: testers get an email (or a
 #                        notification in the Firebase App Tester app) and install it on their phones
-#     "release"          a signed Play Store bundle (.aab), once the signing secrets below are set
+#     "release"          a signed Play Store bundle (.aab), once the signing secrets below are set; with
+#                        PLAY_SERVICE_ACCOUNT_JSON also set, it is uploaded to Play Console → Internal testing
 #   Set the variable DISTRIBUTE_ON_PUSH=true to also send every push to main to testers.
 #
 # Settings → Environments → Production (both jobs run in this environment):
@@ -17,6 +18,8 @@
 #     variable FIREBASE_ANDROID_APP_ID   the Android app's id (Firebase console → Project settings → Your apps, 1:…:android:…)
 #     variable TESTER_GROUPS             group alias(es) from App Distribution → Testers & Groups (default: testers)
 #     secret   FIREBASE_DISTRIBUTION_KEY JSON key of a service account with only the "Firebase App Distribution Admin" role
+#   Play Console upload: secret PLAY_SERVICE_ACCOUNT_JSON  JSON key of a service account invited in Play Console →
+#     Users and permissions, with "Release apps to testing tracks" for Artisan Pro
 #   Secrets (release signing): ANDROID_KEYSTORE_BASE64 (base64 of the .jks), ANDROID_KEYSTORE_PASSWORD,
 #     ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. With them, testers get a release-signed APK (same key as the Play
 #     Store build); without them, a debug APK.
@@ -108,6 +111,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: Production
+    env:
+      PLAY_KEY_SET: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -166,12 +171,31 @@ jobs:
         if: ${{ inputs.release }}
         working-directory: android
         run: ./gradlew bundleRelease --no-daemon
+      - name: Release name
+        id: version
+        if: ${{ inputs.release }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          C=$(node -p "const [a,b,c]=require('./package.json').version.split('.').map(Number); a*10000+b*100+c")
+          echo "name=$V ($C)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v5
         if: ${{ inputs.release }}
         with:
           name: artisan-pro-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
+      # Straight to Play Console → Internal testing, once PLAY_SERVICE_ACCOUNT_JSON is set (see the top of this file).
+      # Play refuses a version code it has seen: raise package.json's version before each release.
+      - name: Upload to Play Console (internal testing)
+        if: ${{ inputs.release && env.PLAY_KEY_SET == 'true' }}
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ai.reclimate.artisanpro
+          releaseFiles: android/app/build/outputs/bundle/release/*.aab
+          track: internal
+          status: completed
+          releaseName: ${{ steps.version.outputs.name }}
       - name: Remove the signing key from the machine
         if: ${{ always() }}
         working-directory: android

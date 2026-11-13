@@ -217,6 +217,8 @@ export function ClassicSheets({ t, moisture, entry, language }: ClassicSheetsPro
               <ClassicSelect key={f.key} label={f.label} value={f.value} options={f.options} onChange={f.onChange} />
             ) : f.type === "text" || f.type === "number" || f.type === "tel" ? (
               <ClassicInput key={f.key} label={f.label} value={f.value} onChange={f.onChange} type={f.type} suffix={f.suffix} />
+            ) : f.type === "media" ? (
+              <MediaAdd key={f.key} label={f.label} kind={f.kind} required={f.required} items={f.items} onAdd={f.onAdd} />
             ) : null
           )}
         </div>

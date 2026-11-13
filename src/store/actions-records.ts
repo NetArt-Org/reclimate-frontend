@@ -15,7 +15,7 @@ const num = (v: unknown) => {
 const media = (v: unknown) => (Array.isArray(v) ? (v as MediaItem[]) : [])
 
 /** The Classic app: tabs, its add-record forms, and loading further pages of every list. */
-export function recordActions(k: StoreKit, startProcess: (d: { btype: string; kiln: string; moist: MoistureReading[] }, formId?: string) => unknown) {
+export function recordActions(k: StoreKit, startProcess: (d: { btype: string; kiln: string; qty?: number; moist: MoistureReading[] }, formId?: string) => unknown) {
   const { get, set, t, toast, sync } = k
 
   const form = () => get().recordForm
@@ -59,6 +59,7 @@ export function recordActions(k: StoreKit, startProcess: (d: { btype: string; ki
         return need(r?.photos.application ?? 0)
       case "start": {
         if (!d.btype) return tt.pickBiomass
+        if (num(d.qty) <= 0) return tt.enterQty
         if (!d.kiln) return tt.pickKiln
         if (r?.moisture.required) {
           const rows = (d.moist as unknown as MoistureReading[]) ?? []
@@ -168,7 +169,7 @@ export function recordActions(k: StoreKit, startProcess: (d: { btype: string; ki
       if (problem) return toast(problem, "info")
       if (f.kind === "start") {
         const d = f.data
-        startProcess({ btype: String(d.btype), kiln: String(d.kiln), moist: ((d.moist as unknown as MoistureReading[]) ?? []).filter(Boolean) }, f.id)
+        startProcess({ btype: String(d.btype), kiln: String(d.kiln), qty: num(d.qty), moist: ((d.moist as unknown as MoistureReading[]) ?? []).filter(Boolean) }, f.id)
         set({ recordForm: null, view: null, cTab: "production", cSub: { ...get().cSub, production: "ongoing" } })
         return
       }

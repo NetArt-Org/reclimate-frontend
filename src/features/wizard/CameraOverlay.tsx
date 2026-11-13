@@ -37,12 +37,16 @@ const canRecord = () => typeof MediaRecorder !== "undefined"
  *  - Shows a live viewfinder when the webview/browser allows camera access.
  *  - Otherwise the shutter opens the device's own camera (or a file picker on
  *    a computer), which works everywhere without extra permissions.
+ * Evidence must be taken now, in the app: there is no gallery, and a file that was not just taken (a computer's
+ * file picker can offer old ones) is refused.
  */
+
+/** A photo/video from the device camera is seconds old; anything older than this was picked, not taken. */
+const FRESH_MS = 5 * 60 * 1000
 export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  // A separate input without `capture` for Gallery: with `capture`, Android and iOS open the camera instead.
-  const galleryRef = useRef<HTMLInputElement>(null)
+  const [stale, setStale] = useState(false)
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const [live, setLive] = useState(false)
@@ -124,6 +128,12 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
 
   const picked = async (file: File | undefined) => {
     if (!file) return
+    // Only what the camera just took (a profile photo may be any picture of yourself).
+    if (!cam.front && file.lastModified && Date.now() - file.lastModified > FRESH_MS) {
+      setStale(true)
+      return
+    }
+    setStale(false)
     setBusy(true)
     const blob = file.type.startsWith("video") ? file : await fileToJpeg(file, cam.slow)
     setBusy(false)
@@ -180,22 +190,23 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
             <div className="mt-0.5 text-[15px] leading-[1.3] font-semibold">{cam.tip}</div>
           </div>
         </div>
+        {stale && (
+          <div role="alert" className="absolute top-[18px] right-3.5 left-3.5 rounded-xl bg-[rgba(184,58,42,.92)] px-3 py-2 text-center text-[15px] font-bold">
+            {t.camLiveOnly}
+          </div>
+        )}
         {flash && <div className="pointer-events-none absolute inset-0 animate-flash bg-white" />}
       </div>
 
       <div className="flex h-[132px] flex-none items-center justify-between px-7 pb-safe">
-        <button
-          type="button"
-          onClick={() => galleryRef.current?.click()}
-          aria-label={t.gallery}
-          className="relative flex size-16 cursor-pointer items-center justify-center overflow-hidden rounded-[14px] border-2 border-white/30 bg-white/8"
-        >
+        {/* The last capture (no gallery: evidence is taken live). */}
+        <div className="relative flex size-16 items-center justify-center overflow-hidden rounded-[14px] border-2 border-white/30 bg-white/8">
           {cam.last ? (
             <MediaView item={cam.last} thumb className="absolute inset-0 size-full object-cover" />
           ) : (
-            <Icon name="images" size={24} />
+            <Icon name={cam.video ? "video" : "camera"} size={24} className="text-white/50" />
           )}
-        </button>
+        </div>
         <button
           type="button"
           onClick={() => void shutter()}
@@ -229,16 +240,6 @@ export function CameraOverlay({ t, cam }: { t: Dict; cam: CameraViewModel }) {
         hidden
         accept={cam.video ? "video/*" : "image/*"}
         capture={cam.front ? "user" : "environment"}
-        onChange={(e) => {
-          void picked(e.target.files?.[0])
-          e.target.value = ""
-        }}
-      />
-      <input
-        ref={galleryRef}
-        type="file"
-        hidden
-        accept={cam.video ? "video/*" : "image/*"}
         onChange={(e) => {
           void picked(e.target.files?.[0])
           e.target.value = ""

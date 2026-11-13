@@ -3,11 +3,15 @@ import type { FieldRules, HistoryEntry, RejectReason } from "@/lib/api/types"
 
 export type { FieldRules, HistoryEntry, RejectReason }
 
-export type Lang = "en" | "id"
+/** English, Bahasa Indonesia, Bahasa Melayu, Khmer, Tagalog. */
+export type Lang = "en" | "id" | "ms" | "km" | "tl"
 export type Role = "worker" | "sup"
 
-/** A plain string, or a per-language pair. */
-export type Localized = string | { en: string; id: string }
+/**
+ * A plain string, or per-language text. English and Indonesian are written next to the text; Malay, Khmer and
+ * Tagalog can be too, otherwise they come from data/i18n-extra (looked up by the English text), else English.
+ */
+export type Localized = string | { en: string; id: string; ms?: string; km?: string; tl?: string }
 
 /* ------------------------------------------------------------------ */
 /* Batches                                                             */
@@ -188,9 +192,17 @@ export interface SetupFormFieldDef {
   k: string
   label: Localized
   icon: IconName
-  type: "text" | "number" | "tel"
+  /**
+   * text/number/tel: typed in. select: one of `opts`. shape: a shape picker plus its dimensions (cm) and the volume
+   * worked out from them (`shapeKind`). photo: photos taken now, in the app. location: the phone's GPS position.
+   */
+  type: "text" | "number" | "tel" | "select" | "shape" | "photo" | "location"
   unit: string
   req: boolean
+  opts?: { v: string; label: Localized }[]
+  shapeKind?: "kiln" | "container"
+  /** Tip shown on the camera (photo fields). */
+  tip?: Localized
 }
 
 export interface Profile {
@@ -220,6 +232,8 @@ export interface UploadItem {
   bid?: string
   /** Classic-app record (waiting to be sent) the file belongs to. */
   rid?: string
+  /** Site-setup item (its temporary id) the file belongs to: a kiln's or container's measuring photo, a bag photo. */
+  sid?: string
   avatar?: boolean
   at: string
 }
@@ -236,7 +250,18 @@ export interface Session {
 
 /** A change made on the phone that still has to reach the backend. */
 export type OutboxOp =
-  | { id: string; kind: "setupAdd"; tempId: string; category: string; name: string; detail: string }
+  | {
+      id: string
+      kind: "setupAdd"
+      tempId: string
+      category: string
+      name: string
+      detail: string
+      /** Shape and dimensions (mm), location, bag type… (see the backend's SetupDetails). */
+      details?: Record<string, unknown>
+      /** Photos; the item is sent once they are all uploaded. */
+      media?: MediaItem[]
+    }
   | { id: string; kind: "setupRemove"; category: string; remoteId: string }
   | { id: string; kind: "profile"; data: Profile }
   | { id: string; kind: "avatar"; mediaId: string | null }

@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "823047856035-71vpmbuk71oq3qb8esguqa8qrei9vl9l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.reclimate.artisanpro",
+            "certificate_hash": "b8d8d26a5d5506df790d5c7b0607e1e90bfd6ccb"
+          }
+        },
+        {
+          "client_id": "823047856035-h5reaf3ln9mkcr0hqbineh6gkg2gqlll.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "ai.reclimate.artisanpro",
+            "certificate_hash": "93a602f39499b52ecf94c9426b0d090be4532c94"
+          }
+        },
+        {
           "client_id": "823047856035-aep84jdkco81enic4ioo70lrgqhsr4ij.apps.googleusercontent.com",
           "client_type": 3
         }

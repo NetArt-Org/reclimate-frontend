@@ -9,6 +9,10 @@ const config: CapacitorConfig = {
   appName: "Artisan Pro",
   webDir: "out",
   backgroundColor: "#F4F0E6",
+  plugins: {
+    // Google sign-in in the Android app: the plugin gets the Google token, the web Firebase SDK keeps the session.
+    FirebaseAuthentication: { skipNativeAuth: true, providers: ["google.com"] },
+  },
 }
 
 export default config

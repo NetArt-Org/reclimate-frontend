@@ -44,8 +44,9 @@ export const DAYS: DayDef[] = [
     { title: { en: 'Photos & videos of the fire', id: 'Foto & video api' }, ins: { en: 'Stand 2 steps back so the whole kiln fits.', id: 'Mundur 2 langkah agar seluruh tungku terlihat.' }, ill: 'kiln with flames', fields: [
       { k: 'firePh', type: 'media', kind: 'photo', need: 1, label: { en: 'Firing photos', id: 'Foto api' }, tip: { en: 'Whole kiln and flames in view', id: 'Seluruh tungku dan api terlihat' } },
       { k: 'fireVid', type: 'media', kind: 'video', need: 1, label: { en: 'Firing videos', id: 'Video api' }, tip: { en: 'At least {s} seconds, hold the phone still', id: 'Minimal {s} detik, pegang HP dengan tenang' } }] },
-    { title: { en: 'Check the temperature', id: 'Cek suhu' }, ins: { en: 'Point the thermometer at the fire and type the number.', id: 'Arahkan termometer ke api, lalu ketik angkanya.' }, ill: 'thermometer reading', fields: [
-      { k: 'temp', type: 'number', label: { en: 'Temperature', id: 'Suhu' }, unit: '°C', hint: 'min' }] },
+    { title: { en: 'Check the temperature', id: 'Cek suhu' }, ins: { en: 'Point the thermometer at the fire, type the number and take a photo of it.', id: 'Arahkan termometer ke api, ketik angkanya, lalu foto.' }, ill: 'thermometer reading', fields: [
+      { k: 'temp', type: 'number', label: { en: 'Temperature', id: 'Suhu' }, unit: '°C', hint: 'min' },
+      { k: 'tempPh', type: 'media', kind: 'photo', need: 1, label: { en: 'Thermometer photo', id: 'Foto termometer' }, tip: { en: 'The number on the thermometer is sharp', id: 'Angka di termometer terlihat jelas' } }] },
     { title: { en: 'Quench the biochar', id: 'Padamkan biochar' }, ins: { en: 'Take each photo as the water goes on.', id: 'Ambil setiap foto saat disiram.' }, ill: 'water quenching the kiln', fields: [
       { k: 'preq', type: 'media', kind: 'photo', need: 1, label: { en: 'Before quench', id: 'Sebelum padam' }, tip: { en: 'Glowing biochar, top view', id: 'Bara biochar, dari atas' } },
       { k: 'quench', type: 'media', kind: 'photo', need: 1, label: { en: 'After quench', id: 'Sesudah padam' }, tip: { en: 'Wet black biochar, no flames', id: 'Biochar hitam basah, tanpa api' } },
@@ -90,16 +91,68 @@ export const SETUP: SetupCategoryDef[] = [
   { key: 'crops', icon: 'sprout', name: { en: 'Preferred crops', id: 'Tanaman pilihan' } },
   { key: 'buyers', icon: 'building-2', name: { en: 'Buyers', id: 'Pembeli' } },
 ];
-const F = (k: string, en: string, id: string, icon: IconName, type: SetupFormFieldDef['type'] = 'text', unit = '', req = false): SetupFormFieldDef => ({ k, label: { en, id }, icon, type, unit, req });
+const F = (k: string, en: string, id: string, icon: IconName, type: SetupFormFieldDef['type'] = 'text', unit = '', req = false, extra: Partial<SetupFormFieldDef> = {}): SetupFormFieldDef => ({ k, label: { en, id }, icon, type, unit, req, ...extra });
+/** A kiln's, container's or bag's photo: taken now, with the tape measure (or the bag) in view. */
+const measurePhoto = (tip: Localized, en = 'Measuring photo', id = 'Foto pengukuran') => F('photo', en, id, 'camera', 'photo', '', true, { tip })
+export const BAG_TYPES: { v: string; label: Localized }[] = [
+  { v: 'Woven sack', label: { en: 'Woven sack', id: 'Karung anyam' } },
+  { v: 'Jumbo bag', label: { en: 'Jumbo bag', id: 'Karung jumbo' } },
+  { v: 'Jute sack', label: { en: 'Jute sack', id: 'Karung goni' } },
+  { v: 'Plastic bag', label: { en: 'Plastic bag', id: 'Kantong plastik' } },
+  { v: 'Bucket', label: { en: 'Bucket', id: 'Ember' } },
+  { v: 'Other', label: { en: 'Other', id: 'Lainnya' } },
+]
+/**
+ * The "Add new" form of each setup list. Kilns and containers are measured (shape + dimensions → volume) with a photo
+ * of the measuring; a biomass source saves where it is; a bag says its type and how its capacity is measured.
+ */
 export const SETUP_FORMS: Record<string, SetupFormFieldDef[]> = {
-  kilns: [F('name', 'Kiln name', 'Nama tungku', 'flame-kindling'), F('cap', 'Capacity', 'Kapasitas', 'cylinder', 'number', 'L')],
-  sources: [F('name', 'Source name', 'Nama sumber', 'warehouse'), F('addr', 'Village / address', 'Desa / alamat', 'map-pin')],
+  kilns: [
+    F('name', 'Kiln name', 'Nama tungku', 'flame-kindling'),
+    F('kilnType', 'Kiln type', 'Jenis tungku', 'flame', 'select', '', true, { opts: [{ v: 'kontiki', label: 'Kon-Tiki' }, { v: 'pit', label: { en: 'Pit', id: 'Lubang' } }] }),
+    F('shape', 'Shape', 'Bentuk', 'shapes', 'shape', 'cm', true, { shapeKind: 'kiln' }),
+    measurePhoto({ en: 'Tape measure across the kiln, numbers readable', id: 'Meteran melintang di tungku, angka terbaca' }),
+  ],
+  sources: [F('name', 'Source name', 'Nama sumber', 'warehouse'), F('addr', 'Village / address', 'Desa / alamat', 'map-pin'), F('loc', 'Location', 'Lokasi', 'locate-fixed', 'location', '', true)],
   farmers: [F('name', 'Farmer name', 'Nama petani', 'user-round'), F('phone', 'Phone number', 'Nomor HP', 'phone', 'tel', '', true)],
   vehicles: [F('name', 'Vehicle type', 'Jenis kendaraan', 'truck'), F('plate', 'Plate number', 'Nomor polisi', 'hash', 'text', '', true)],
   bioref: [F('name', 'Biomass name', 'Nama biomassa', 'wheat'), F('density', 'Bulk density', 'Kepadatan curah', 'weight', 'number', 'kg/m³', true)],
-  measure: [F('name', 'Container name', 'Nama wadah', 'cylinder'), F('vol', 'Volume', 'Volume', 'ruler', 'number', 'L', true)],
-  sample: [F('name', 'Container name', 'Nama wadah', 'test-tube'), F('vol', 'Volume', 'Volume', 'ruler', 'number', 'L', true)],
-  bags: [F('name', 'Bag name', 'Nama karung', 'shopping-bag'), F('cap', 'Capacity', 'Kapasitas', 'weight', 'number', 'kg', true)],
+  measure: [
+    F('name', 'Container name', 'Nama wadah', 'cylinder'),
+    F('shape', 'Shape', 'Bentuk', 'shapes', 'shape', 'cm', true, { shapeKind: 'container' }),
+    measurePhoto({ en: 'Tape measure across the container, numbers readable', id: 'Meteran melintang di wadah, angka terbaca' }),
+  ],
+  sample: [
+    F('name', 'Container name', 'Nama wadah', 'test-tube'),
+    F('shape', 'Shape', 'Bentuk', 'shapes', 'shape', 'cm', true, { shapeKind: 'container' }),
+    measurePhoto({ en: 'Tape measure across the container, numbers readable', id: 'Meteran melintang di wadah, angka terbaca' }),
+  ],
+  bags: [
+    F('name', 'Bag name', 'Nama karung', 'shopping-bag'),
+    F('bagType', 'Bag type', 'Jenis karung', 'package', 'select', '', true, { opts: BAG_TYPES }),
+    F('measure', 'Capacity measured by', 'Kapasitas diukur dengan', 'scale', 'select', '', true, { opts: [{ v: 'weight', label: { en: 'Weight (kg)', id: 'Berat (kg)' } }, { v: 'volume', label: { en: 'Volume (L)', id: 'Volume (L)' } }] }),
+    F('cap', 'Capacity', 'Kapasitas', 'weight', 'number', 'kg', true),
+    measurePhoto({ en: 'The whole bag in view', id: 'Seluruh karung terlihat' }, 'Bag photo', 'Foto karung'),
+  ],
   crops: [F('name', 'Crop name', 'Nama tanaman', 'sprout')],
   buyers: [F('name', 'Company name', 'Nama perusahaan', 'building-2'), F('phone', 'Contact phone', 'Telepon kontak', 'phone', 'tel')],
 };
+/** Kiln and container shapes, and what each dimension is called (cm in the app, mm to the backend). */
+export const SHAPE_LABEL: Record<string, Localized> = {
+  conical: { en: 'Cone (wider at the top)', id: 'Kerucut (lebih lebar di atas)' },
+  cylinder: { en: 'Cylinder (drum)', id: 'Silinder (drum)' },
+  rectangular: { en: 'Rectangular', id: 'Persegi panjang' },
+  squarePyramid: { en: 'Square, wider at the top', id: 'Persegi, lebih lebar di atas' },
+  cuboid: { en: 'Box', id: 'Kotak' },
+}
+export const DIMENSION_LABEL: Record<string, Localized> = {
+  upperSurfaceDiameter: { en: 'Top diameter', id: 'Diameter atas' },
+  lowerSurfaceDiameter: { en: 'Bottom diameter', id: 'Diameter bawah' },
+  diameter: { en: 'Diameter', id: 'Diameter' },
+  length: { en: 'Length', id: 'Panjang' },
+  width: { en: 'Width', id: 'Lebar' },
+  depth: { en: 'Depth', id: 'Kedalaman' },
+  height: { en: 'Height', id: 'Tinggi' },
+  upperSide: { en: 'Top side', id: 'Sisi atas' },
+  lowerSide: { en: 'Bottom side', id: 'Sisi bawah' },
+}

@@ -1,16 +1,29 @@
+import { EXTRA } from "@/data/i18n-extra"
 import type { Lang, Localized } from "@/types"
 
-/** Resolve a localized value for the active language. */
-export const L = (o: Localized | null | undefined, lang: Lang): string =>
-  o == null ? "" : typeof o === "object" ? (o[lang] ?? o.en) : String(o)
+/**
+ * Resolve a localized value for the active language: its own text in that language, else Malay/Khmer/Tagalog from
+ * data/i18n-extra (looked up by the English text), else English.
+ */
+export const L = (o: Localized | null | undefined, lang: Lang): string => {
+  if (o == null) return ""
+  if (typeof o !== "object") return String(o)
+  const own = o[lang]
+  if (own) return own
+  if (lang === "ms" || lang === "km" || lang === "tl") return EXTRA[lang][o.en] ?? o.en
+  return o.en
+}
 
 /** Replace `{key}` placeholders. */
 export const fill = (s: string, values: Record<string, string | number>) =>
   Object.keys(values).reduce((acc, k) => acc.split(`{${k}}`).join(String(values[k])), s)
 
+/** Number and date locale per language. */
+export const LOCALE: Record<Lang, string> = { en: "en-US", id: "id-ID", ms: "ms-MY", km: "km-KH", tl: "fil-PH" }
+
 /** Locale-aware number format (id-ID uses `.` thousands, `,` decimals). */
 export const formatNumber = (n: number, lang: Lang, digits = 0) =>
-  Number(n).toLocaleString(lang === "id" ? "id-ID" : "en-US", {
+  Number(n).toLocaleString(LOCALE[lang], {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })
@@ -18,7 +31,7 @@ export const formatNumber = (n: number, lang: Lang, digits = 0) =>
 /** Money in the currency the admin set (large amounts shortened: "Rp 1,2 jt", "IDR 1.2M"). */
 export const formatMoney = (amount: number, currency: string, lang: Lang) => {
   try {
-    return new Intl.NumberFormat(lang === "id" ? "id-ID" : "en-US", {
+    return new Intl.NumberFormat(LOCALE[lang], {
       style: "currency",
       currency: currency || "IDR",
       notation: Math.abs(amount) >= 1e6 ? "compact" : "standard",
