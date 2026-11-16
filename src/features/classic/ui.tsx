@@ -221,7 +221,7 @@ export function ClassicButton({ children, onPress, variant = "primary", disabled
       onClick={onPress}
       disabled={disabled}
       className={cn(
-        "h-[54px] w-full cursor-pointer rounded-full text-[17px] font-semibold disabled:opacity-50",
+        "h-[54px] w-full cursor-pointer rounded-full text-[17px] font-semibold disabled:cursor-not-allowed disabled:!bg-[#cfcfcf] disabled:!text-white disabled:!border-transparent",
         variant === "primary" ? "bg-cl text-white" : variant === "outline" ? "border border-cl-ink/30 bg-white text-cl" : "text-cl",
         className
       )}

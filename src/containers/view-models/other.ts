@@ -13,6 +13,7 @@ import { isWet, mediaOf, moistureOf } from "@/lib/batch"
 import { L, fill, formatElapsed, nameParts } from "@/lib/format"
 import { canUseGoogle } from "@/lib/firebase"
 import { APP_VERSION } from "@/lib/native"
+import { addFormMissing } from "@/lib/setup-form"
 import { SHAPES, volumeLitresMm } from "@/lib/shape-volume"
 import type { Batch, MediaFieldDef, MediaItem, Profile } from "@/types"
 import { batchTitle, batchYieldTitle, buildHeader, profileInfo, statusView, type VMContext } from "./context"
@@ -254,7 +255,15 @@ export function buildSetupAdd({ s, a, t, lg }: VMContext): SetupAddScreenProps |
         return [{ kind: "photo", key: fd.k, label, icon: fd.icon, items: f.media, onAdd: a.addPhoto, onRemove: a.removeAddPhoto }]
       case "location": {
         const lat = Number(val("lat")), lng = Number(val("lng"))
-        return [{ kind: "location", key: fd.k, label, icon: fd.icon, value: val("lat") ? fill(t.locSavedAt, { c: `${lat.toFixed(5)}, ${lng.toFixed(5)}` }) : null, action: t.locSave, onCapture: a.addLocation }]
+        // Captured on its own when the form opens; the button is only for trying again after a refusal or no fix.
+        const state = val("lat") ? "saved" : val("locState") === "getting" ? "getting" : val("locState") === "failed" ? "failed" : "getting"
+        return [{
+          kind: "location", key: fd.k, label, icon: fd.icon, state,
+          title: state === "saved" ? t.locSavedTitle : state === "getting" ? t.locGetting : t.locOffTitle,
+          detail: state === "saved" ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : state === "getting" ? t.locGettingSub : t.locOffSub,
+          extra: state === "saved" && val("acc") ? fill(t.locAccuracy, { m: val("acc") }) : "",
+          action: t.locTryAgain, onCapture: a.addLocation,
+        }]
       }
       default: {
         const unit = f.key === "bags" && fd.k === "cap" && val("measure") === "volume" ? "L" : fd.unit
@@ -268,6 +277,8 @@ export function buildSetupAdd({ s, a, t, lg }: VMContext): SetupAddScreenProps |
     title: f.key === "kilns" ? t.requestKiln : f.key === "bioref" ? t.requestDensity : fill(t.addNewOf, { x: L(cat.name, lg).toLowerCase() }),
     fields,
     fromWizard: !!f.ret,
+    // Grey until every required field is filled; the line above the button says what is still missing.
+    missing: addFormMissing(f, t, lg),
     onSave: a.saveAdd,
     onBack: a.back,
   }

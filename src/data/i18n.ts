@@ -69,7 +69,7 @@ const en = { home: 'Home', process: 'Process', start: 'Start', credits: 'Credits
     updateTitle: 'Update needed', updateSub: 'This version of Artisan Pro is no longer supported. Update the app to keep recording your work. Nothing saved on this phone is lost.', updateBtn: 'Update the app',
     camLiveOnly: 'Take a new photo with the camera. Photos from the gallery are not accepted.',
     volumeIs: 'Volume: {v} L', volumeNeedDims: 'Enter every measurement to see the volume.', pickShape: 'Choose the shape', dimsNeeded: 'Enter every measurement',
-    photoNeeded: 'Take the photo', takePhotoBtn: 'Take photo', locSave: 'Save my location', locSavedAt: 'Saved: {c}', locNeeded: 'Save the location', locGetting: 'Getting your location…',
+    photoNeeded: 'Take the photo', takePhotoBtn: 'Take photo', locSave: 'Save my location', locSavedAt: 'Saved: {c}', locNeeded: 'Save the location', locGetting: 'Getting your location…', locFailedShort: 'Location not saved. Turn on location and allow it for the app.', locSavedTitle: 'Location saved', locGettingSub: 'Allow location when your phone asks.', locOffTitle: 'Location is off', locOffSub: 'Turn on location and allow it for the app.', locAccuracy: 'Accuracy ±{m} m', locTryAgain: 'Try again',
     stockLeft: 'In stock: {n} kg', overStock: 'Only {n} kg of this biomass is in stock.', needsTempPhoto: 'Take the thermometer photo' } as const
 
 export type Dict = { [K in keyof typeof en]: string }
@@ -138,7 +138,7 @@ const id: Dict = { home: 'Beranda', process: 'Proses', start: 'Mulai', credits: 
     updateTitle: 'Perlu pembaruan', updateSub: 'Versi Artisan Pro ini tidak didukung lagi. Perbarui aplikasi agar bisa terus mencatat pekerjaan Anda. Data di ponsel ini tidak hilang.', updateBtn: 'Perbarui aplikasi',
     camLiveOnly: 'Ambil foto baru dengan kamera. Foto dari galeri tidak diterima.',
     volumeIs: 'Volume: {v} L', volumeNeedDims: 'Isi semua ukuran untuk melihat volumenya.', pickShape: 'Pilih bentuknya', dimsNeeded: 'Isi semua ukuran',
-    photoNeeded: 'Ambil fotonya', takePhotoBtn: 'Ambil foto', locSave: 'Simpan lokasi saya', locSavedAt: 'Tersimpan: {c}', locNeeded: 'Simpan lokasinya', locGetting: 'Mengambil lokasi Anda…',
+    photoNeeded: 'Ambil fotonya', takePhotoBtn: 'Ambil foto', locSave: 'Simpan lokasi saya', locSavedAt: 'Tersimpan: {c}', locNeeded: 'Simpan lokasinya', locGetting: 'Mengambil lokasi Anda…', locFailedShort: 'Lokasi belum tersimpan. Nyalakan lokasi dan izinkan untuk aplikasi.', locSavedTitle: 'Lokasi tersimpan', locGettingSub: 'Izinkan lokasi saat ponsel bertanya.', locOffTitle: 'Lokasi mati', locOffSub: 'Nyalakan lokasi dan izinkan untuk aplikasi.', locAccuracy: 'Akurasi ±{m} m', locTryAgain: 'Coba lagi',
     stockLeft: 'Stok: {n} kg', overStock: 'Stok biomassa ini hanya {n} kg.', needsTempPhoto: 'Ambil foto termometer' }
 
 /** Malay, Khmer and Tagalog: their own text where translated (data/i18n-extra), English otherwise. */

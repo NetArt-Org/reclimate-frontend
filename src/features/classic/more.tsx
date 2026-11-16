@@ -68,7 +68,19 @@ export function ClassicSetupList(p: SetupListScreenProps) {
 export function ClassicSetupAdd(p: SetupAddScreenProps) {
   const { t } = p
   return (
-    <FormScreen title={p.title} onBack={p.onBack} backLabel={t.back} footer={<ClassicButton onPress={p.onSave}>{t.save}</ClassicButton>}>
+    <FormScreen
+      title={p.title}
+      onBack={p.onBack}
+      backLabel={t.back}
+      footer={
+        <div className="flex flex-col gap-2">
+          {p.missing && <div className="text-center text-[15px] text-cl-muted" aria-live="polite">{p.missing}</div>}
+          <ClassicButton onPress={p.onSave} disabled={!!p.missing}>
+            {t.save}
+          </ClassicButton>
+        </div>
+      }
+    >
       {p.fields.map((f) => {
         switch (f.kind) {
           case "input":
@@ -84,9 +96,19 @@ export function ClassicSetupAdd(p: SetupAddScreenProps) {
                   {f.label}
                   <span className="text-cl-bad"> *</span>
                 </div>
-                <ClassicButton variant="outline" onPress={f.onCapture}>
-                  {f.value ?? f.action}
-                </ClassicButton>
+                <div role="status" aria-live="polite" className={cn("flex items-start gap-3 rounded-lg px-4 py-3", f.state === "saved" ? "bg-cl-soft" : f.state === "failed" ? "bg-[#fdecea]" : "bg-[#f2f2f2]")}>
+                  <Icon name={f.state === "saved" ? "map-pin-check" : f.state === "failed" ? "triangle-alert" : "loader-circle"} size={24} className={cn("mt-0.5 flex-none", f.state === "saved" ? "text-cl" : f.state === "failed" ? "text-cl-bad" : "animate-spin text-cl-muted")} />
+                  <div className="min-w-0">
+                    <div className={cn("text-[17px] font-semibold", f.state === "saved" ? "text-cl" : f.state === "failed" ? "text-cl-bad" : "text-cl-muted")}>{f.title}</div>
+                    <div className="text-[15px]">{f.detail}</div>
+                    {f.extra && <div className="text-[14px] text-cl-muted">{f.extra}</div>}
+                  </div>
+                </div>
+                {f.state === "failed" && (
+                  <ClassicButton variant="outline" onPress={f.onCapture}>
+                    {f.action}
+                  </ClassicButton>
+                )}
               </div>
             )
           case "note":

@@ -8,6 +8,8 @@ import type { Dict } from "./i18n"
  * Machine-assisted translations: have a native speaker check them before release.
  */
 export const ms: Partial<Dict> = {
+  locSavedTitle: 'Lokasi disimpan', locGettingSub: 'Benarkan lokasi apabila telefon bertanya.', locOffTitle: 'Lokasi dimatikan', locOffSub: 'Hidupkan lokasi dan benarkan untuk aplikasi.', locAccuracy: 'Ketepatan ±{m} m', locTryAgain: 'Cuba lagi',
+  locFailedShort: 'Lokasi belum disimpan. Hidupkan lokasi dan benarkan untuk aplikasi.',
   home: 'Utama', process: 'Proses', start: 'Mula', credits: 'Kredit', profile: 'Profil', hello: 'Selamat petang,', online: 'Dalam talian', offline: 'Luar talian',
   unused: 'Kredit karbon belum digunakan', creditsWord: 'kredit', estimate: 'anggaran', toGo: 'lagi untuk dibayar', readyToSell: 'Sedia untuk dijual!', pendCr: 'kredit menunggu kelulusan',
   today: 'Tugas hari ini', cont: 'Teruskan', allDone: 'Semua selesai', allDoneSub: 'Tiada apa-apa yang menunggu anda sekarang.', newBatch: 'Mulakan kelompok baharu',
@@ -77,6 +79,8 @@ export const ms: Partial<Dict> = {
 }
 
 export const km: Partial<Dict> = {
+  locSavedTitle: 'បានរក្សាទុកទីតាំង', locGettingSub: 'អនុញ្ញាតទីតាំង នៅពេលទូរស័ព្ទសួរ។', locOffTitle: 'ទីតាំងត្រូវបានបិទ', locOffSub: 'សូមបើកទីតាំង ហើយអនុញ្ញាតឱ្យកម្មវិធី។', locAccuracy: 'ភាពត្រឹមត្រូវ ±{m} ម៉ែត្រ', locTryAgain: 'ព្យាយាមម្ដងទៀត',
+  locFailedShort: 'មិនទាន់រក្សាទុកទីតាំង។ សូមបើកទីតាំង ហើយអនុញ្ញាតឱ្យកម្មវិធី។',
   home: 'ទំព័រដើម', process: 'ដំណើរការ', start: 'ចាប់ផ្ដើម', credits: 'ក្រេឌីត', profile: 'ប្រវត្តិរូប', hello: 'ទិវាសួស្ដី,', online: 'មានអ៊ីនធឺណិត', offline: 'គ្មានអ៊ីនធឺណិត',
   unused: 'ក្រេឌីតកាបូនមិនទាន់ប្រើ', creditsWord: 'ក្រេឌីត', estimate: 'ប៉ាន់ស្មាន', toGo: 'ទៀតដើម្បីទទួលប្រាក់', readyToSell: 'រួចរាល់សម្រាប់លក់!', pendCr: 'ក្រេឌីតកំពុងរង់ចាំការអនុម័ត',
   today: 'ការងារថ្ងៃនេះ', cont: 'បន្ត', allDone: 'រួចរាល់ទាំងអស់', allDoneSub: 'ឥឡូវនេះគ្មានអ្វីរង់ចាំអ្នកទេ។', newBatch: 'ចាប់ផ្ដើមជុំថ្មី',
@@ -146,6 +150,8 @@ export const km: Partial<Dict> = {
 }
 
 export const tl: Partial<Dict> = {
+  locSavedTitle: 'Naka-save ang lokasyon', locGettingSub: 'Payagan ang lokasyon kapag nagtanong ang telepono.', locOffTitle: 'Naka-off ang lokasyon', locOffSub: 'I-on ang lokasyon at payagan ito para sa app.', locAccuracy: 'Katumpakan ±{m} m', locTryAgain: 'Subukan ulit',
+  locFailedShort: 'Hindi pa naka-save ang lokasyon. I-on ang lokasyon at payagan ito para sa app.',
   home: 'Home', process: 'Proseso', start: 'Simulan', credits: 'Credits', profile: 'Profile', hello: 'Magandang hapon,', online: 'Online', offline: 'Offline',
   unused: 'Hindi pa nagagamit na carbon credits', creditsWord: 'credits', estimate: 'tantiya', toGo: 'pa bago mabayaran', readyToSell: 'Handa nang ibenta!', pendCr: 'credits na naghihintay ng approval',
   today: 'Gawain ngayon', cont: 'Ituloy', allDone: 'Tapos na lahat', allDoneSub: 'Wala kang hinihintay na gawain ngayon.', newBatch: 'Magsimula ng bagong batch',

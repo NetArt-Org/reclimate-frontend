@@ -111,7 +111,11 @@ export type AddField =
   | { kind: "input"; key: string; label: string; icon: IconName; type: "text" | "number" | "tel"; unit: string; value: string; onChange: (v: string) => void }
   | { kind: "select"; key: string; label: string; icon: IconName; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }
   | { kind: "photo"; key: string; label: string; icon: IconName; items: MediaItem[]; onAdd: () => void; onRemove: (id: string) => void }
-  | { kind: "location"; key: string; label: string; icon: IconName; value: string | null; action: string; onCapture: () => void }
+  | {
+      kind: "location"; key: string; label: string; icon: IconName; state: "getting" | "saved" | "failed"
+      /** "Location saved" / "Finding your location…" / "Location is off", a detail line, and the accuracy (saved). */
+      title: string; detail: string; extra: string; action: string; onCapture: () => void
+    }
   | { kind: "note"; key: string; icon: IconName; text: string; ok: boolean }
 
 export interface SetupAddScreenProps {
@@ -120,6 +124,8 @@ export interface SetupAddScreenProps {
   title: string
   fields: AddField[]
   fromWizard: boolean
+  /** What is still needed (Save stays grey and disabled until it is null). */
+  missing: string | null
   onSave: () => void
   onBack: () => void
 }
@@ -180,16 +186,48 @@ function AddFieldView({ f, t }: { f: AddField; t: Dict }) {
           </div>
         </div>
       )
-    case "location":
+    case "location": {
+      const tone = f.state === "saved" ? "success" : f.state === "failed" ? "danger" : "muted"
       return (
         <div className="flex flex-col gap-2">
           <FieldLabel>{f.label}</FieldLabel>
-          <Button variant={f.value ? "soft" : "dashed"} size="md" className="h-[54px] justify-start gap-2.5 text-base" onClick={f.onCapture}>
-            <Icon name={f.value ? "map-pin-check" : "locate-fixed"} size={20} />
-            {f.value ?? f.action}
-          </Button>
+          <div
+            role="status"
+            aria-live="polite"
+            className={cn(
+              "flex flex-col gap-3 rounded-[18px] border p-3.5",
+              tone === "success" ? "border-success/25 bg-success-soft" : tone === "danger" ? "border-danger/25 bg-danger-soft" : "border-line bg-surface"
+            )}
+          >
+            <div className="flex items-start gap-3">
+              <span
+                className={cn(
+                  "flex size-11 flex-none items-center justify-center rounded-full",
+                  tone === "success" ? "bg-success text-white" : tone === "danger" ? "bg-danger text-white" : "bg-brand-soft text-brand"
+                )}
+              >
+                <Icon
+                  name={f.state === "saved" ? "map-pin-check" : f.state === "failed" ? "triangle-alert" : "loader-circle"}
+                  size={22}
+                  className={cn(f.state === "getting" && "animate-spin")}
+                />
+              </span>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <div className={cn("text-base font-extrabold", tone === "success" ? "text-success-ink" : tone === "danger" ? "text-danger" : "text-ink")}>{f.title}</div>
+                <div className={cn("text-[15px] leading-snug", f.state === "saved" ? "font-bold tabular-nums text-ink" : "text-ink-muted")}>{f.detail}</div>
+                {f.extra && <div className="text-sm text-ink-muted">{f.extra}</div>}
+              </div>
+            </div>
+            {f.state === "failed" && (
+              <Button variant="outline" size="md" className="w-full gap-2 bg-surface" onClick={f.onCapture}>
+                <Icon name="locate-fixed" size={20} />
+                {f.action}
+              </Button>
+            )}
+          </div>
         </div>
       )
+    }
     case "note":
       return (
         <div className={cn("flex items-center gap-2 rounded-2xl px-4 py-3 text-[15px] font-bold", f.ok ? "bg-success-soft text-success-ink" : "bg-muted text-ink-muted")}>
@@ -206,10 +244,18 @@ export function SetupAddScreen(p: SetupAddScreenProps) {
     <ScreenWithFooter
       className="gap-4"
       footer={
-        <Button variant="flat" size="xl" className="w-full gap-2.5" onClick={p.onSave}>
-          <Icon name="check" size={22} />
-          {t.saveBtn}
-        </Button>
+        <div className="flex flex-col gap-2">
+          {p.missing && (
+            <div className="flex items-center justify-center gap-1.5 text-sm font-semibold text-ink-muted" aria-live="polite">
+              <Icon name="info" size={16} />
+              {p.missing}
+            </div>
+          )}
+          <Button variant={p.missing ? "disabled" : "flat"} size="xl" className="w-full gap-2.5" onClick={p.onSave} disabled={!!p.missing}>
+            <Icon name="check" size={22} />
+            {t.saveBtn}
+          </Button>
+        </div>
       }
     >
       <BackButton label={t.back} onClick={p.onBack} />

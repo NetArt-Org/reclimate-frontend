@@ -1,11 +1,12 @@
 import { createEmptyData } from "@/data/app-data"
 import { SETUP_FORMS, rid } from "@/data/constants"
 import * as api from "@/lib/api"
-import { L, fill } from "@/lib/format"
+import { fill } from "@/lib/format"
 import * as fb from "@/lib/firebase"
 import { fileToJpeg } from "@/lib/image"
 import { mediaStore } from "@/lib/media-store"
 import { callPhone, currentPosition } from "@/lib/native"
+import { addFormMissing } from "@/lib/setup-form"
 import { SHAPES, volumeLitresMm } from "@/lib/shape-volume"
 import type { Profile, UiVariant } from "@/types"
 import type { AddFormState, AppState, AuthStep, StoreKit } from "./state"
@@ -166,6 +167,25 @@ export function accountActions(k: StoreKit) {
     const item = k.keepFile(blob, { kind: "photo", avatar: true, name: { en: "Profile photo", id: "Foto profil" } })
     set({ avatarItem: item, cam: null, sheet: null })
     toast(t().photoUpdated, "image")
+  }
+
+  /**
+   * The phone's GPS position into the open "Add new" form (a biomass source). `vals.locState` tells the form what is
+   * happening: "getting" (asking the phone), "failed" (refused or no fix: the form shows a button to try again).
+   */
+  const captureLocation = (auto: boolean) => {
+    const form = get().addForm
+    if (!form) return
+    const patch = (vals: Record<string, string>) =>
+      set((s) => (s.addForm?.id === form.id ? { addForm: { ...s.addForm, vals: { ...s.addForm.vals, ...vals } } } : {}))
+    patch({ locState: "getting" })
+    void currentPosition()
+      .then(({ lat, lng, accuracy }) => patch({ lat: String(lat), lng: String(lng), acc: accuracy ? String(Math.round(accuracy)) : "", locState: "" }))
+      .catch(() => {
+        patch({ locState: "failed" })
+        // Opening the form asks quietly; a tap on the button says why it did not work.
+        if (!auto) toast(t().locFailed, "info")
+      })
   }
 
   return {
@@ -403,6 +423,8 @@ export function accountActions(k: StoreKit) {
       // Defaults for the choices (the most common answer), so a quick add needs only the name and measurements.
       const vals: Record<string, string> = key === "kilns" ? { kilnType: "kontiki" } : key === "bags" ? { measure: "weight" } : {}
       set({ addForm: { id: "t-" + rid(), key, vals, media: [], ret }, view: "setupAdd" })
+      // A biomass source records where it is: ask for the location straight away (the phone asks for permission).
+      if (SETUP_FORMS[key].some((f) => f.type === "location")) captureLocation(true)
     },
     setAddValue: (key: string, val: string) =>
       set((s) => (s.addForm ? { addForm: { ...s.addForm, vals: { ...s.addForm.vals, [key]: val } } } : {})),
@@ -418,12 +440,7 @@ export function accountActions(k: StoreKit) {
       set((s) => ({ uploads: s.uploads.filter((u) => u.id !== id), addForm: s.addForm ? { ...s.addForm, media: s.addForm.media.filter((m) => m.id !== id) } : null }))
     },
     /** Save where the biomass source is (the phone's GPS). */
-    addLocation: () => {
-      toast(t().locGetting, "locate-fixed")
-      void currentPosition()
-        .then(({ lat, lng }) => set((s) => (s.addForm ? { addForm: { ...s.addForm, vals: { ...s.addForm.vals, lat: String(lat), lng: String(lng) } } } : {})))
-        .catch(() => toast(t().locFailed, "info"))
-    },
+    addLocation: () => captureLocation(false),
     saveAdd: () => {
       const s = get()
       const a = s.addForm
@@ -431,20 +448,9 @@ export function accountActions(k: StoreKit) {
       const tt = t()
       const fields = SETUP_FORMS[a.key]
       const val = (k: string) => String(a.vals[k] ?? "").trim()
-      for (const [i, f] of fields.entries()) {
-        if (i > 0 && !f.req) continue
-        const need = (msg: string) => toast(msg, "info")
-        if (f.type === "shape") {
-          const shape = val("shape")
-          if (!shape) return need(tt.pickShape)
-          const keys = SHAPES[f.shapeKind ?? "kiln"][shape] ?? []
-          if (keys.some((d) => !(Number(val(`dim:${d}`).replace(",", ".")) > 0))) return need(tt.dimsNeeded)
-        } else if (f.type === "photo") {
-          if (!a.media.length) return need(tt.photoNeeded)
-        } else if (f.type === "location") {
-          if (!val("lat")) return need(tt.locNeeded)
-        } else if (!val(f.k)) return need(fill(tt.fieldNeeded, { f: L(f.label, s.lang).toLowerCase() }))
-      }
+      // The Save button is grey until the form is complete (lib/setup-form); this guards the save too.
+      const missing = addFormMissing(a, tt, s.lang)
+      if (missing) return toast(missing, "info")
       if (!s.online && (a.key === "kilns" || a.key === "bioref")) return toast(tt.needsOnline, "wifi-off")
       const name = val("name")
       const shapeField = fields.find((f) => f.type === "shape")

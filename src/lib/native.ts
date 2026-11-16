@@ -33,6 +33,8 @@ export async function deviceModel(): Promise<string> {
 export interface Position {
   lat: number
   lng: number
+  /** How close the fix is, in metres (when the phone says). */
+  accuracy?: number
 }
 
 /** Current GPS position. Asks for permission the first time; rejects when it is refused or unavailable. */
@@ -45,12 +47,12 @@ export async function currentPosition(): Promise<Position> {
       if (asked.location !== "granted") throw new Error("permission")
     }
     const p = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 15000 })
-    return { lat: p.coords.latitude, lng: p.coords.longitude }
+    return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }
   }
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error("unavailable"))
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy }),
       reject,
       { enableHighAccuracy: true, timeout: 15000 }
     )
